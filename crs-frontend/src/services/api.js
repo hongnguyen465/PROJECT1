@@ -1,13 +1,13 @@
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000/api',
+  baseURL: import.meta.env.VITE_API_BASE_URL || '/api',
   headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
 })
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('crs_token') 
-    || localStorage.getItem('token') 
+  const token = localStorage.getItem('crs_token')
+    || localStorage.getItem('token')
     || localStorage.getItem('auth_token')
     || localStorage.getItem('accessToken')
   if (token && token !== 'demo-token') {
@@ -21,7 +21,7 @@ api.interceptors.response.use(
   (error) => {
     const status = error.response?.status
     const isAuthEndpoint = error.config?.url?.includes('/auth/login') || error.config?.url?.includes('/auth/register')
-    
+
     // Lỗi 401 (Unauthorized - Hết hạn token hoặc không hợp lệ)
     if (status === 401 && !isAuthEndpoint) {
       console.warn('⚠️ Token hết hạn hoặc không có quyền truy cập:', error.config?.url)

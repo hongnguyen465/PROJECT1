@@ -34,12 +34,12 @@ const formatImgUrl = (url?: string): string => {
     return url
   }
   if (url.startsWith('/storage/')) {
-    return `http://localhost:8000${url}`
+    return url
   }
   if (url.startsWith('/')) {
-    return `http://localhost:8000/storage${url}`
+    return url
   }
-  return `http://localhost:8000/storage/${url}`
+  return `/storage/${url}`
 }
 
 // ============================================================================
@@ -237,45 +237,39 @@ export function Orders() {
             { key: 'all', label: `Tất cả (${orders.length})` },
             {
               key: 'pending',
-              label: `Chờ xử lý (${
-                orders.filter((o) => o.status === 'pending').length
-              })`,
+              label: `Chờ xử lý (${orders.filter((o) => o.status === 'pending').length
+                })`,
             },
             {
               key: 'processing',
-              label: `Chờ lấy hàng (${
-                orders.filter((o) => (o as any).status === 'processing').length
-              })`,
+              label: `Chờ lấy hàng (${orders.filter((o) => (o as any).status === 'processing').length
+                })`,
             },
             {
               key: 'shipping',
-              label: `Đang giao (${
-                orders.filter((o) => o.status === 'shipping').length
-              })`,
+              label: `Đang giao (${orders.filter((o) => o.status === 'shipping').length
+                })`,
             },
             {
               key: 'delivered',
-              label: `Đã giao (${
-                orders.filter(
-                  (o) => o.status === 'delivered' || o.status === 'paid'
-                ).length
-              })`,
+              label: `Đã giao (${orders.filter(
+                (o) => o.status === 'delivered' || o.status === 'paid'
+              ).length
+                })`,
             },
             {
               key: 'cancelled',
-              label: `Đã hủy (${
-                orders.filter((o) => o.status === 'cancelled').length
-              })`,
+              label: `Đã hủy (${orders.filter((o) => o.status === 'cancelled').length
+                })`,
             },
           ].map((tab) => (
             <button
               key={tab.key}
               onClick={() => setStatusFilter(tab.key as typeof statusFilter)}
-              className={`shrink-0 rounded-2xl px-5 py-2.5 text-xs font-bold transition ${
-                statusFilter === tab.key
+              className={`shrink-0 rounded-2xl px-5 py-2.5 text-xs font-bold transition ${statusFilter === tab.key
                   ? 'bg-lime-400 text-slate-950 shadow-md shadow-lime-400/20'
                   : 'border border-white/10 bg-white/5 text-slate-400 hover:border-white/20 hover:text-white'
-              }`}
+                }`}
             >
               {tab.label}
             </button>
@@ -350,11 +344,10 @@ export function Orders() {
                     <div className="flex flex-wrap items-center gap-2.5">
                       {order.paymentMethod === 'momo' && (
                         <span
-                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-mono font-bold ${
-                            order.paymentStatus === 'paid'
+                          className={`rounded-full px-2.5 py-0.5 text-[11px] font-mono font-bold ${order.paymentStatus === 'paid'
                               ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                               : 'bg-pink-500/20 text-pink-300 border border-pink-500/30'
-                          }`}
+                            }`}
                         >
                           {order.paymentStatus === 'paid'
                             ? '● Đã thanh toán MoMo'
@@ -642,22 +635,19 @@ export function Orders() {
                               className="flex flex-col items-center gap-2"
                             >
                               <div
-                                className={`grid h-10 w-10 place-items-center rounded-2xl transition shadow-md ${
-                                  isDone
+                                className={`grid h-10 w-10 place-items-center rounded-2xl transition shadow-md ${isDone
                                     ? 'bg-lime-400 text-slate-950 font-black'
                                     : 'border border-white/10 bg-white/5 text-slate-500'
-                                } ${
-                                  isCurrent
+                                  } ${isCurrent
                                     ? 'ring-2 ring-lime-400 ring-offset-2 ring-offset-slate-950'
                                     : ''
-                                }`}
+                                  }`}
                               >
                                 <IconComp size={18} />
                               </div>
                               <span
-                                className={`text-[11px] font-bold ${
-                                  isDone ? 'text-white' : 'text-slate-500'
-                                }`}
+                                className={`text-[11px] font-bold ${isDone ? 'text-white' : 'text-slate-500'
+                                  }`}
                               >
                                 {s.title}
                               </span>
@@ -717,12 +707,12 @@ export function Orders() {
                           {selectedOrder.status === 'processing'
                             ? 'Shop đã chuẩn bị xong đơn hàng — Chờ lấy hàng (Bưu tá GHN đang đến nhận bưu kiện).'
                             : selectedOrder.status === 'shipping'
-                            ? 'Bưu tá GHN đang vận chuyển kiện hàng đến địa chỉ nhận của bạn.'
-                            : selectedOrder.status === 'delivered' || selectedOrder.status === 'paid'
-                            ? 'Kiện hàng đã được giao thành công tới tay bạn.'
-                            : selectedOrder.status === 'cancelled'
-                            ? 'Đơn giao hàng đã bị hủy.'
-                            : 'Đơn hàng đang được cập nhật từ hệ thống GHN.'}
+                              ? 'Bưu tá GHN đang vận chuyển kiện hàng đến địa chỉ nhận của bạn.'
+                              : selectedOrder.status === 'delivered' || selectedOrder.status === 'paid'
+                                ? 'Kiện hàng đã được giao thành công tới tay bạn.'
+                                : selectedOrder.status === 'cancelled'
+                                  ? 'Đơn giao hàng đã bị hủy.'
+                                  : 'Đơn hàng đang được cập nhật từ hệ thống GHN.'}
                         </div>
                       </div>
                     </div>
@@ -777,8 +767,8 @@ export function Orders() {
                           {selectedOrder.paymentStatus === 'paid'
                             ? 'Đã thanh toán'
                             : selectedOrder.paymentStatus === 'unpaid'
-                            ? 'Chưa thanh toán (Thu COD khi giao)'
-                            : 'Chờ thanh toán'}
+                              ? 'Chưa thanh toán (Thu COD khi giao)'
+                              : 'Chờ thanh toán'}
                         </b>
                       </p>
                       <p className="text-slate-300">
@@ -912,116 +902,116 @@ export function Orders() {
                     {selectedOrder.status === 'pending' &&
                       !selectedOrder.ghn_code &&
                       !selectedOrder.ghnTrackingCode && (
-                      <button
-                        type="button"
-                        onClick={() => setCancelModalOrder(selectedOrder)}
-                        className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-xs font-bold text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer"
-                      >
-                        <XCircle size={14} /> Hủy đơn hàng này
-                      </button>
-                    )}
+                        <button
+                          type="button"
+                          onClick={() => setCancelModalOrder(selectedOrder)}
+                          className="flex items-center gap-1.5 rounded-xl border border-rose-500/40 bg-rose-500/10 px-4 py-2.5 text-xs font-bold text-rose-400 hover:bg-rose-500 hover:text-white transition cursor-pointer"
+                        >
+                          <XCircle size={14} /> Hủy đơn hàng này
+                        </button>
+                      )}
 
-                      {selectedOrder.paymentMethod === 'momo' &&
-                        selectedOrder.paymentStatus !== 'paid' &&
-                        selectedOrder.status !== 'cancelled' && (
-                          <button
-                            type="button"
-                            onClick={() => handlePayMoMo(selectedOrder.id, selectedOrder.total, selectedOrder.id)}
-                            disabled={payingOrderId === selectedOrder.id}
-                            className="flex items-center gap-1.5 rounded-xl bg-pink-500 px-5 py-2.5 text-xs font-black text-white hover:bg-pink-600 transition shadow-md shadow-pink-500/20 cursor-pointer disabled:opacity-50"
-                          >
-                            <CreditCard size={14} />{' '}
-                            {payingOrderId === selectedOrder.id ? 'Đang kết nối...' : 'Thanh toán MoMo'}
-                          </button>
-                        )}
+                    {selectedOrder.paymentMethod === 'momo' &&
+                      selectedOrder.paymentStatus !== 'paid' &&
+                      selectedOrder.status !== 'cancelled' && (
+                        <button
+                          type="button"
+                          onClick={() => handlePayMoMo(selectedOrder.id, selectedOrder.total, selectedOrder.id)}
+                          disabled={payingOrderId === selectedOrder.id}
+                          className="flex items-center gap-1.5 rounded-xl bg-pink-500 px-5 py-2.5 text-xs font-black text-white hover:bg-pink-600 transition shadow-md shadow-pink-500/20 cursor-pointer disabled:opacity-50"
+                        >
+                          <CreditCard size={14} />{' '}
+                          {payingOrderId === selectedOrder.id ? 'Đang kết nối...' : 'Thanh toán MoMo'}
+                        </button>
+                      )}
 
-                      <button
-                        onClick={() => handleReorder(selectedOrder)}
-                        className="flex items-center gap-2 rounded-xl bg-lime-400 px-6 py-2.5 text-xs font-black text-slate-950 hover:bg-lime-300 shadow-md shadow-lime-400/20"
-                      >
-                        <RotateCcw size={14} /> Mua lại đơn này
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
-
-          {/* ============================================================================ */}
-          {/* 8. RENDER: CANCEL ORDER CONFIRMATION MODAL                                  */}
-          {/* ============================================================================ */}
-          <AnimatePresence>
-            {cancelModalOrder && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
-                <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  onClick={() => setCancelModalOrder(null)}
-                  className="fixed inset-0 bg-slate-950/85 backdrop-blur-md"
-                />
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 15 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 15 }}
-                  className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-slate-900 p-6 sm:p-7 text-white shadow-2xl space-y-4"
-                >
-                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
-                    <XCircle size={24} />
-                  </div>
-                  <div className="space-y-1">
-                    <h3 className="text-lg font-black text-white">Xác nhận hủy đơn hàng</h3>
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      Bạn có chắc chắn muốn hủy đơn hàng{' '}
-                      <b className="text-white font-mono">{cancelModalOrder.id}</b>?
-                      Sau khi hủy, trạng thái đơn sẽ chuyển sang <b className="text-rose-400">"Đã hủy"</b> và không thể hoàn tác.
-                    </p>
-                  </div>
-                  <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
                     <button
-                      type="button"
-                      onClick={() => setCancelModalOrder(null)}
-                      className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-bold text-slate-300 hover:bg-white/10 hover:text-white"
+                      onClick={() => handleReorder(selectedOrder)}
+                      className="flex items-center gap-2 rounded-xl bg-lime-400 px-6 py-2.5 text-xs font-black text-slate-950 hover:bg-lime-300 shadow-md shadow-lime-400/20"
                     >
-                      Giữ lại đơn
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleConfirmCancelOrder}
-                      className="rounded-xl bg-rose-500 px-5 py-2.5 text-xs font-black uppercase text-white hover:bg-rose-600 transition shadow-lg shadow-rose-500/25 cursor-pointer"
-                    >
-                      Xác nhận hủy
+                      <RotateCcw size={14} /> Mua lại đơn này
                     </button>
                   </div>
-                </motion.div>
-              </div>
-            )}
-          </AnimatePresence>
-
-          {/* ============================================================================ */}
-          {/* 9. RENDER: PRODUCT REVIEW & FEEDBACK MODAL                                  */}
-          {/* ============================================================================ */}
-          {reviewTarget && (
-            <ReviewModal
-              isOpen={Boolean(reviewTarget)}
-              orderId={reviewTarget.orderId}
-              productId={reviewTarget.productId}
-              productName={reviewTarget.productName}
-              productImage={reviewTarget.productImage}
-              onClose={() => setReviewTarget(null)}
-              onSuccess={() => {
-                const key = `${reviewTarget.orderId}-${reviewTarget.productId}`
-                setReviewedKeys((prev) => {
-                  const next = { ...prev, [key]: true }
-                  localStorage.setItem('crs_reviewed_items', JSON.stringify(next))
-                  return next
-                })
-                void refreshOrders()
-              }}
-            />
+                </div>
+              </motion.div>
+            </div>
           )}
-        </div>
-      </section>
-    )
-  }
+        </AnimatePresence>
+
+        {/* ============================================================================ */}
+        {/* 8. RENDER: CANCEL ORDER CONFIRMATION MODAL                                  */}
+        {/* ============================================================================ */}
+        <AnimatePresence>
+          {cancelModalOrder && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setCancelModalOrder(null)}
+                className="fixed inset-0 bg-slate-950/85 backdrop-blur-md"
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                className="relative w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-slate-900 p-6 sm:p-7 text-white shadow-2xl space-y-4"
+              >
+                <div className="grid h-12 w-12 place-items-center rounded-2xl bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                  <XCircle size={24} />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-lg font-black text-white">Xác nhận hủy đơn hàng</h3>
+                  <p className="text-xs text-slate-400 leading-relaxed">
+                    Bạn có chắc chắn muốn hủy đơn hàng{' '}
+                    <b className="text-white font-mono">{cancelModalOrder.id}</b>?
+                    Sau khi hủy, trạng thái đơn sẽ chuyển sang <b className="text-rose-400">"Đã hủy"</b> và không thể hoàn tác.
+                  </p>
+                </div>
+                <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/10">
+                  <button
+                    type="button"
+                    onClick={() => setCancelModalOrder(null)}
+                    className="rounded-xl border border-white/10 px-4 py-2.5 text-xs font-bold text-slate-300 hover:bg-white/10 hover:text-white"
+                  >
+                    Giữ lại đơn
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleConfirmCancelOrder}
+                    className="rounded-xl bg-rose-500 px-5 py-2.5 text-xs font-black uppercase text-white hover:bg-rose-600 transition shadow-lg shadow-rose-500/25 cursor-pointer"
+                  >
+                    Xác nhận hủy
+                  </button>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+
+        {/* ============================================================================ */}
+        {/* 9. RENDER: PRODUCT REVIEW & FEEDBACK MODAL                                  */}
+        {/* ============================================================================ */}
+        {reviewTarget && (
+          <ReviewModal
+            isOpen={Boolean(reviewTarget)}
+            orderId={reviewTarget.orderId}
+            productId={reviewTarget.productId}
+            productName={reviewTarget.productName}
+            productImage={reviewTarget.productImage}
+            onClose={() => setReviewTarget(null)}
+            onSuccess={() => {
+              const key = `${reviewTarget.orderId}-${reviewTarget.productId}`
+              setReviewedKeys((prev) => {
+                const next = { ...prev, [key]: true }
+                localStorage.setItem('crs_reviewed_items', JSON.stringify(next))
+                return next
+              })
+              void refreshOrders()
+            }}
+          />
+        )}
+      </div>
+    </section>
+  )
+}

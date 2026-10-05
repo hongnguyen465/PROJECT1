@@ -15,8 +15,9 @@ const getCartItemImageUrl = (item: any) => {
     ''
   if (!raw) return 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=300&q=80'
   if (raw.startsWith('http') || raw.startsWith('data:')) return raw
-  if (raw.startsWith('/storage/')) return `http://localhost:8000${raw}`
-  return `http://localhost:8000/storage/${raw}`
+  if (raw.startsWith('/storage/')) return raw
+  if (raw.startsWith('/')) return raw
+  return `/storage/${raw}`
 }
 
 //Ngăn kéo giỏ hàng trượt ra từ cạnh màn hình.
@@ -146,11 +147,10 @@ export function CartDrawer() {
                       <motion.div
                         layout
                         key={item.cartItemId}
-                        className={`flex gap-3 rounded-2xl border p-3 transition ${
-                          item.selected === false
+                        className={`flex gap-3 rounded-2xl border p-3 transition ${item.selected === false
                             ? 'border-white/5 bg-[#0B0E17]/40 opacity-60'
                             : 'border-white/10 bg-[#0B0E17]/60'
-                        }`}
+                          }`}
                       >
                         {/* Checkbox */}
                         <input
