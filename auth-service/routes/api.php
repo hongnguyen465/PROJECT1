@@ -31,14 +31,15 @@ Route::prefix('auth')->group($authRoutes);
 $protectedRoutes = function (): void {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/logout', [AuthController::class, 'logout']);
-    Route::patch('/profile', [AuthController::class, 'updateProfile']);
+    Route::match(['PUT', 'PATCH', 'POST'], '/profile', [AuthController::class, 'updateProfile']);
 
     // Address Management
     Route::get('/addresses', [AddressController::class, 'index']);
     Route::post('/addresses', [AddressController::class, 'store']);
-    Route::patch('/addresses/{address}', [AddressController::class, 'update']);
+    Route::match(['PUT', 'PATCH'], '/addresses/{address}', [AddressController::class, 'update']);
     Route::delete('/addresses/{address}', [AddressController::class, 'destroy']);
-    Route::patch('/addresses/{address}/set-default', [AddressController::class, 'setDefault']);
+    Route::match(['PUT', 'PATCH', 'POST'], '/addresses/{address}/set-default', [AddressController::class, 'setDefault']);
+    Route::match(['PUT', 'PATCH', 'POST'], '/addresses/{address}/default', [AddressController::class, 'setDefault']);
 
     // User Management (Protected Admin APIs)
     Route::get('/users', [AuthController::class, 'getUsers']);

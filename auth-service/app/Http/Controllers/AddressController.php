@@ -44,7 +44,7 @@ class AddressController extends Controller
         $validated = $request->validate([
             'user_id'        => ['required', 'integer', 'exists:users,id'],
             'recipient_name' => ['required', 'string', 'max:100'],
-            'phone'          => ['required', 'string', 'regex:/^0(3|5|7|8|9)\d{8}$/'],
+            'phone'          => ['required', 'string', 'regex:/^[0-9\+\-\.\s]{9,15}$/'],
             'province'       => ['required', 'string', 'max:100'],
             'district'       => ['required', 'string', 'max:100'],
             'ward'           => ['required', 'string', 'max:100'],
@@ -83,7 +83,7 @@ class AddressController extends Controller
     {
         $validated = $request->validate([
             'recipient_name' => ['sometimes', 'string', 'max:100'],
-            'phone'          => ['sometimes', 'string', 'regex:/^0(3|5|7|8|9)\d{8}$/'],
+            'phone'          => ['sometimes', 'string', 'regex:/^[0-9\+\-\.\s]{9,15}$/'],
             'province'       => ['sometimes', 'string', 'max:100'],
             'district'       => ['sometimes', 'string', 'max:100'],
             'ward'           => ['sometimes', 'string', 'max:100'],

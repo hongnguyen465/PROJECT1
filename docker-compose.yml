@@ -1,0 +1,216 @@
+version: '3.8'
+
+services:
+  # MySQL Database Container for all microservices
+  mysql:
+    image: mysql:8.0
+    container_name: striker_mysql
+    restart: unless-stopped
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: Trang2005
+      MYSQL_ROOT_HOST: "%"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./docker/mysql-init:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-pTrang2005"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - striker_network
+
+  # Auth Service (Port 8001)
+  auth-service:
+    build:
+      context: ./auth-service
+      dockerfile: Dockerfile
+    container_name: striker_auth_service
+    restart: unless-stopped
+    ports:
+      - "8001:8001"
+    environment:
+      APP_NAME: auth-service
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:6b39Jt1fGvjK2xL5mPn9Q0rTuVwXyZ1aBcDeFgHiJkL="
+      APP_URL: "http://localhost:8001"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: football_auth_db
+      DB_USERNAME: root
+      DB_PASSWORD: Trang2005
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: "false"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      PORT: 8001
+      RUN_MIGRATIONS: "true"
+      RUN_SEEDERS: "false"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - striker_network
+
+  # Catalog Service (Port 8002)
+  catalog-service:
+    build:
+      context: ./catalog-service
+      dockerfile: Dockerfile
+    container_name: striker_catalog_service
+    restart: unless-stopped
+    ports:
+      - "8002:8002"
+    environment:
+      APP_NAME: catalog-service
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:7c40Ku2gHwkL3yM6nQo0R1sUvWxYz2bCdEfGhIjKkLm="
+      APP_URL: "http://localhost:8002"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: football_catalog_db
+      DB_USERNAME: root
+      DB_PASSWORD: Trang2005
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: "false"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      PORT: 8002
+      RUN_MIGRATIONS: "true"
+      RUN_SEEDERS: "true"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - striker_network
+
+  # Order Service (Port 8003)
+  order-service:
+    build:
+      context: ./order-service
+      dockerfile: Dockerfile
+    container_name: striker_order_service
+    restart: unless-stopped
+    ports:
+      - "8003:8003"
+    environment:
+      APP_NAME: order-service
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:8d51Lv3hIxlM4zN7oRp1S2tVwXyZ03cDeFgHiJkLmNo="
+      APP_URL: "http://localhost:8003"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: football_order_db
+      DB_USERNAME: root
+      DB_PASSWORD: Trang2005
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: "false"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      PORT: 8003
+      RUN_MIGRATIONS: "true"
+      RUN_SEEDERS: "false"
+      CATALOG_SERVICE_URL: "http://catalog-service:8002"
+      PAYMENT_SERVICE_URL: "http://payment-service:8004"
+      INTERNAL_SERVICE_SECRET: "STRIKER_SECRET_TOKEN_2026"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - striker_network
+
+  # Payment Service (Port 8004)
+  payment-service:
+    build:
+      context: ./payment-service
+      dockerfile: Dockerfile
+    container_name: striker_payment_service
+    restart: unless-stopped
+    ports:
+      - "8004:8004"
+    environment:
+      APP_NAME: payment-service
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:W5diLMySQrqjzD7m+Rnad+oqy/02dDtYY5GI7U0NonY="
+      APP_URL: "http://localhost:8004"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: football_payment_db
+      DB_USERNAME: root
+      DB_PASSWORD: Trang2005
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: "false"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      PORT: 8004
+      RUN_MIGRATIONS: "true"
+      RUN_SEEDERS: "false"
+      ORDER_SERVICE_URL: "http://order-service:8003"
+      INTERNAL_SERVICE_SECRET: "STRIKER_SECRET_TOKEN_2026"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - striker_network
+
+  # API Gateway (Port 8000)
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: striker_api_gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      APP_NAME: api-gateway
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:5a28Is0eFujK1wK4lOm8P9qStUvWxZ0zAbCdEfGhIjK="
+      APP_URL: "http://localhost:8000"
+      PORT: 8000
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+      CATALOG_SERVICE_URL: "http://catalog-service:8002"
+      ORDER_SERVICE_URL: "http://order-service:8003"
+      PAYMENT_SERVICE_URL: "http://payment-service:8004"
+      INTERNAL_SERVICE_SECRET: "STRIKER_SECRET_TOKEN_2026"
+    depends_on:
+      - auth-service
+      - catalog-service
+      - order-service
+      - payment-service
+    networks:
+      - striker_network
+
+  # Frontend Web UI (Port 5173 / 80)
+  crs-frontend:
+    build:
+      context: ./crs-frontend
+      dockerfile: Dockerfile
+    container_name: striker_frontend
+    restart: unless-stopped
+    ports:
+      - "5173:80"
+    depends_on:
+      - api-gateway
+    networks:
+      - striker_network
+
+volumes:
+  mysql_data:
+    driver: local
+
+networks:
+  striker_network:
+    driver: bridge

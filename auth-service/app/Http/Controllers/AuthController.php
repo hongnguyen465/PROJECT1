@@ -173,24 +173,47 @@ class AuthController extends Controller
     public function login(LoginRequest $request): JsonResponse
     {
         $validated = $request->validated();
-        [$email, $phoneNumber] = $this->parseIdentifier($validated['login']);
-        $user = $email
-            ? User::where('email', $email)->first()
-            : User::where('phone', $phoneNumber)->first();
+        $loginInput = trim($validated['login']);
+
+        if (str_contains($loginInput, '@')) {
+            $email = strtolower($loginInput);
+            $user = User::where('email', $email)->first();
+        } else {
+            $cleanPhone = preg_replace('/[\s\.\-]+/', '', $loginInput);
+            $phoneVariants = array_values(array_unique(array_filter([
+                $loginInput,
+                $cleanPhone,
+                str_starts_with($cleanPhone, '0') ? ('+84' . substr($cleanPhone, 1)) : null,
+                str_starts_with($cleanPhone, '0') ? ('84' . substr($cleanPhone, 1)) : null,
+                str_starts_with($cleanPhone, '+84') ? ('0' . substr($cleanPhone, 3)) : null,
+                str_starts_with($cleanPhone, '84') ? ('0' . substr($cleanPhone, 2)) : null,
+            ])));
+
+            $user = User::whereIn('phone', $phoneVariants)->first();
+        }
 
         if (! $user || ! Hash::check($validated['password'], $user->password)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Thông tin đăng nhập hoặc mật khẩu không chính xác.',
+                'message' => 'Thông tin đăng nhập (Email / SĐT) hoặc mật khẩu không chính xác.',
                 'data' => null,
                 'errors' => ['login' => ['Thông tin đăng nhập không hợp lệ.']],
             ], 401);
         }
 
-        if ($email && ! $user->email_verified_at) {
+        if ($user->is_active === false) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email chưa được xác minh',
+                'message' => 'Tài khoản của bạn đã bị tạm khóa. Vui lòng liên hệ ban quản trị.',
+                'data' => null,
+                'errors' => ['login' => ['Tài khoản đã bị tạm khóa.']],
+            ], 403);
+        }
+
+        if ($user->email && ! $user->email_verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email tài khoản chưa được kích hoạt/xác thực OTP.',
                 'email' => $user->email,
                 'requires_email_verification' => true,
                 'data' => ['email' => $user->email],
@@ -365,28 +388,73 @@ class AuthController extends Controller
 
         $validated = $request->validate([
             'name' => ['sometimes', 'string', 'max:100'],
-            'phone' => ['sometimes', 'nullable', 'string', 'max:20'],
-            'phone_number' => ['sometimes', 'nullable', 'string', 'max:20'],
+            'email' => ['sometimes', 'nullable', 'email', 'max:100', 'unique:users,email,' . $user->id],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:20', 'unique:users,phone,' . $user->id],
+            'phone_number' => ['sometimes', 'nullable', 'string', 'max:20', 'unique:users,phone,' . $user->id],
             'current_password' => ['sometimes', 'nullable', 'string'],
             'password' => ['sometimes', 'nullable', 'string', 'min:6'],
+            'new_password' => ['sometimes', 'nullable', 'string', 'min:6'],
+        ], [
+            'email.unique' => 'Địa chỉ Email này đã được sử dụng bởi một tài khoản khác.',
+            'phone.unique' => 'Số điện thoại này đã được sử dụng bởi một tài khoản khác.',
+            'phone_number.unique' => 'Số điện thoại này đã được sử dụng bởi một tài khoản khác.',
         ]);
 
         if (!empty($validated['name'])) {
             $user->name = trim($validated['name']);
         }
-        if (isset($validated['phone']) || isset($validated['phone_number'])) {
-            $user->phone = $validated['phone'] ?? $validated['phone_number'];
+
+        if (array_key_exists('email', $validated)) {
+            $newEmail = !empty($validated['email']) ? trim(strtolower($validated['email'])) : null;
+            if ($newEmail !== null) {
+                $existingEmail = User::where('email', $newEmail)->where('id', '!=', $user->id)->first();
+                if ($existingEmail) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Địa chỉ Email này đã được đăng ký bởi một tài khoản khác.',
+                        'errors' => ['email' => ['Email đã tồn tại trong hệ thống.']],
+                    ], 422);
+                }
+                $user->email = $newEmail;
+            }
         }
 
-        if (!empty($validated['password'])) {
-            if (!empty($validated['current_password']) && !Hash::check($validated['current_password'], $user->password)) {
+        if (array_key_exists('phone', $validated) || array_key_exists('phone_number', $validated)) {
+            $rawPhone = $validated['phone'] ?? $validated['phone_number'] ?? null;
+            $newPhone = !empty($rawPhone) ? trim($rawPhone) : null;
+            if ($newPhone !== null) {
+                $existingPhone = User::where('phone', $newPhone)->where('id', '!=', $user->id)->first();
+                if ($existingPhone) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Số điện thoại này đã được đăng ký bởi một tài khoản khác.',
+                        'errors' => ['phone' => ['Số điện thoại đã tồn tại trong hệ thống.']],
+                    ], 422);
+                }
+                $user->phone = $newPhone;
+            } else {
+                $user->phone = null;
+            }
+        }
+
+        $newPassword = $validated['new_password'] ?? $validated['password'] ?? null;
+        if (!empty($newPassword)) {
+            $currentPassword = $validated['current_password'] ?? null;
+            if (empty($currentPassword)) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'Mật khẩu hiện tại không chính xác.',
+                    'message' => 'Vui lòng nhập mật khẩu hiện tại để xác thực.',
+                    'errors' => ['current_password' => ['Vui lòng nhập mật khẩu hiện tại.']],
+                ], 422);
+            }
+            if (!empty($user->password) && !Hash::check($currentPassword, $user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Mật khẩu hiện tại không chính xác. Vui lòng kiểm tra lại.',
                     'errors' => ['current_password' => ['Mật khẩu hiện tại không khớp.']],
                 ], 422);
             }
-            $user->password = Hash::make($validated['password']);
+            $user->password = Hash::make($newPassword);
         }
 
         $user->save();

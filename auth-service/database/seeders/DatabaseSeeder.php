@@ -21,6 +21,7 @@ class DatabaseSeeder extends Seeder
                 'phone' => '0909999999',
                 'role' => 'admin',
                 'is_active' => true,
+                'email_verified_at' => now(),
             ]
         );
 
@@ -34,6 +35,7 @@ class DatabaseSeeder extends Seeder
                 'phone' => '0977777777',
                 'role' => 'customer',
                 'is_active' => true,
+                'email_verified_at' => now(),
             ]
         );
 
@@ -47,6 +49,7 @@ class DatabaseSeeder extends Seeder
                 'phone' => '0988776655',
                 'role' => 'customer',
                 'is_active' => true,
+                'email_verified_at' => now(),
             ]
         );
 
@@ -60,6 +63,7 @@ class DatabaseSeeder extends Seeder
                 'phone' => '0912345678',
                 'role' => 'customer',
                 'is_active' => true,
+                'email_verified_at' => now(),
             ]
         );
 
@@ -73,6 +77,7 @@ class DatabaseSeeder extends Seeder
                 'phone' => '0903332211',
                 'role' => 'customer',
                 'is_active' => true,
+                'email_verified_at' => now(),
             ]
         );
 
