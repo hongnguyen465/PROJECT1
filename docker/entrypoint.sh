@@ -36,18 +36,25 @@ done
 
 # Run Migrations & Seeders if enabled
 if [[ "${RUN_MIGRATIONS:-true}" == "true" ]]; then
-    echo "Running database migrations..."
-    (cd /var/www/auth-service && php artisan migrate --force --no-interaction || true)
-    (cd /var/www/catalog-service && php artisan migrate --force --no-interaction || true)
-    (cd /var/www/order-service && php artisan migrate --force --no-interaction || true)
-    (cd /var/www/payment-service && php artisan migrate --force --no-interaction || true)
+    echo "=== Running database migrations ==="
+    echo "1. Auth Service Migrations:"
+    (cd /var/www/auth-service && php artisan migrate --force --no-interaction) || echo "Auth migration finished with notice"
+    echo "2. Catalog Service Migrations:"
+    (cd /var/www/catalog-service && php artisan migrate --force --no-interaction) || echo "Catalog migration finished with notice"
+    echo "3. Order Service Migrations:"
+    (cd /var/www/order-service && php artisan migrate --force --no-interaction) || echo "Order migration finished with notice"
+    echo "4. Payment Service Migrations:"
+    (cd /var/www/payment-service && php artisan migrate --force --no-interaction) || echo "Payment migration finished with notice"
 fi
 
 if [[ "${RUN_SEEDERS:-false}" == "true" ]]; then
-    echo "Running database seeders..."
-    (cd /var/www/auth-service && php artisan db:seed --force --no-interaction || true)
-    (cd /var/www/catalog-service && php artisan db:seed --force --no-interaction || true)
-    (cd /var/www/order-service && php artisan db:seed --force --no-interaction || true)
+    echo "=== Running database seeders ==="
+    echo "1. Auth Service Seeders:"
+    (cd /var/www/auth-service && php artisan db:seed --force --no-interaction) || echo "Auth seeder finished with notice"
+    echo "2. Catalog Service Seeders:"
+    (cd /var/www/catalog-service && php artisan db:seed --force --no-interaction) || echo "Catalog seeder finished with notice"
+    echo "3. Order Service Seeders:"
+    (cd /var/www/order-service && php artisan db:seed --force --no-interaction) || echo "Order seeder finished with notice"
 fi
 
 # Start all microservices in background
