@@ -1,0 +1,14 @@
+.git
+.github
+.agents
+.codex
+.idea
+.vscode
+.env
+.env.*
+**/.env
+**/.env.*
+**/vendor
+**/node_modules
+**/storage/logs/*.log
+**/bootstrap/cache/*.php
