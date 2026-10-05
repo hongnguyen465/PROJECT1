@@ -25,7 +25,7 @@ return [
     |
     */
 
-    'secret' => env('JWT_SECRET'),
+    'secret' => env('JWT_SECRET', 'striker_super_secret_jwt_key_2026_production_123456789'),
 
     /*
     |--------------------------------------------------------------------------

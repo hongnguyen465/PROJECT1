@@ -19,6 +19,8 @@ if (( $# > 0 )); then
 fi
 
 export PORT="${PORT:-10000}"
+export APP_KEY="${APP_KEY:-base64:7B8M4oZq5q3k9u8r7t6w5e4r3t2y1u0i9o8p7a6s5d4=}"
+export JWT_SECRET="${JWT_SECRET:-striker_super_secret_jwt_key_2026_production_123456789}"
 
 # Substitute PORT into Nginx template
 envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/http.d/default.conf

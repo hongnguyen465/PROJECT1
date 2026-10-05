@@ -46,6 +46,8 @@ COPY --chmod=755 docker/entrypoint.sh /usr/local/bin/app-entrypoint
 RUN mkdir -p /run/nginx
 
 ENV APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr LOG_LEVEL=info \
+    APP_KEY=base64:7B8M4oZq5q3k9u8r7t6w5e4r3t2y1u0i9o8p7a6s5d4= \
+    JWT_SECRET=striker_super_secret_jwt_key_2026_production_123456789 \
     DB_CONNECTION=mysql SESSION_DRIVER=database SESSION_SECURE_COOKIE=true \
     CACHE_STORE=database QUEUE_CONNECTION=sync PORT=10000 RUN_MIGRATIONS=true RUN_SEEDERS=true
 
