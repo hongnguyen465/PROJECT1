@@ -6,8 +6,8 @@ RUN npm ci
 COPY crs-frontend/ ./
 RUN npm run build
 
-# Stage 2: Final Production Image with PHP 8.3 & Nginx
-FROM php:8.3-cli-alpine AS production
+# Stage 2: Final Production Image with PHP 8.4 & Nginx
+FROM php:8.4-cli-alpine AS production
 ENV COMPOSER_ALLOW_SUPERUSER=1
 
 RUN apk add --no-cache bash nginx curl git unzip gettext tini ca-certificates \

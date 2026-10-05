@@ -1,4 +1,4 @@
-FROM php:8.3-fpm-alpine AS php-base
+FROM php:8.4-fpm-alpine AS php-base
 
 RUN apk add --no-cache bash nginx curl gettext su-exec tini ca-certificates \
     libpng libzip oniguruma \
