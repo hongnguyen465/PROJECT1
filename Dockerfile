@@ -6,9 +6,11 @@ RUN npm ci
 COPY crs-frontend/ ./
 RUN npm run build
 
-# Stage 2: Base PHP environment
+# Stage 2: Base PHP environment with all required tools (git, unzip, curl, nginx, extensions)
 FROM php:8.3-cli-alpine AS php-base
-RUN apk add --no-cache bash nginx curl gettext tini ca-certificates \
+ENV COMPOSER_ALLOW_SUPERUSER=1
+
+RUN apk add --no-cache bash nginx curl git unzip gettext tini ca-certificates \
     libpng libzip oniguruma \
     && apk add --no-cache --virtual .build-deps $PHPIZE_DEPS \
     libpng-dev libzip-dev oniguruma-dev \
@@ -27,11 +29,11 @@ COPY catalog-service/composer.json catalog-service/composer.lock ./catalog-servi
 COPY order-service/composer.json order-service/composer.lock ./order-service/
 COPY payment-service/composer.json payment-service/composer.lock ./payment-service/
 
-RUN cd api-gateway && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader && cd .. \
-    && cd auth-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader && cd .. \
-    && cd catalog-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader && cd .. \
-    && cd order-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader && cd .. \
-    && cd payment-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader && cd ..
+RUN cd api-gateway && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader --ignore-platform-reqs && cd .. \
+    && cd auth-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader --ignore-platform-reqs && cd .. \
+    && cd catalog-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader --ignore-platform-reqs && cd .. \
+    && cd order-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader --ignore-platform-reqs && cd .. \
+    && cd payment-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --no-autoloader --ignore-platform-reqs && cd ..
 
 COPY api-gateway/ ./api-gateway/
 COPY auth-service/ ./auth-service/
