@@ -29,11 +29,11 @@ COPY order-service/ ./order-service/
 COPY payment-service/ ./payment-service/
 
 # Install PHP dependencies without post-dump artisan scripts for all services
-RUN cd api-gateway && composer install --no-dev --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
-    && cd auth-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
-    && cd catalog-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
-    && cd order-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
-    && cd payment-service && composer install --no-dev --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd ..
+RUN cd api-gateway && composer install --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
+    && cd auth-service && composer install --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
+    && cd catalog-service && composer install --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
+    && cd order-service && composer install --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd .. \
+    && cd payment-service && composer install --prefer-dist --no-interaction --no-scripts --ignore-platform-reqs && cd ..
 
 # Copy built frontend
 COPY --from=frontend-builder /app/dist /var/www/crs-frontend/dist
