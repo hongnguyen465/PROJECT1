@@ -30,9 +30,9 @@ return [
 
     'ghn' => [
         'token' => env('GHN_TOKEN', '84d13de2-aa85-11f1-a973-aee5264794df'),
-        'shop_id' => (int) env('GHN_SHOP_ID', 216452),
+        'shop_id' => (int) env('GHN_SHOP_ID', 217482),
         'base_url' => env('GHN_BASE_URL', 'https://dev-online-gateway.ghn.vn/shiip/public-api'),
-        'from_district_id' => (int) env('GHN_FROM_DISTRICT_ID', 1450),
+        'from_district_id' => (int) env('GHN_FROM_DISTRICT_ID', 1482),
     ],
 
     'catalog' => [

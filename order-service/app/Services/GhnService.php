@@ -16,8 +16,8 @@ class GhnService
 
     public function __construct()
     {
-        $this->token = (string) config('services.ghn.token', env('GHN_TOKEN', ''));
-        $this->shopId = (int) config('services.ghn.shop_id', env('GHN_SHOP_ID', 0));
+        $this->token = (string) config('services.ghn.token', env('GHN_TOKEN', '84d13de2-aa85-11f1-a973-aee5264794df'));
+        $this->shopId = (int) config('services.ghn.shop_id', env('GHN_SHOP_ID', 217482));
         $this->baseUrl = rtrim((string) config('services.ghn.base_url', env('GHN_BASE_URL', 'https://dev-online-gateway.ghn.vn/shiip/public-api')), '/');
         $this->fromDistrictId = (int) config('services.ghn.from_district_id', env('GHN_FROM_DISTRICT_ID', 1482));
     }
@@ -100,10 +100,9 @@ class GhnService
         int $height = 10,
         int $insuranceValue = 0
     ): array {
-        $shopId = (int) config('services.ghn.shop_id', env('GHN_SHOP_ID', $this->shopId));
+        $token = (string) config('services.ghn.token', env('GHN_TOKEN', $this->token));
 
         $payload = [
-            'shop_id' => $shopId,
             'from_district_id' => $this->fromDistrictId,
             'to_district_id' => $toDistrictId,
             'to_ward_code' => (string) $toWardCode,
@@ -113,36 +112,42 @@ class GhnService
             'width' => max(5, $width),
             'height' => max(5, $height),
             'insurance_value' => max(0, $insuranceValue),
-            'coupon' => null,
         ];
 
-        $headers = [
-            'Token' => (string) config('services.ghn.token', env('GHN_TOKEN', $this->token)),
-            'token' => (string) config('services.ghn.token', env('GHN_TOKEN', $this->token)),
-            'ShopId' => $shopId,
-            'shop_id' => $shopId,
+        // 1. Direct call to GHN calculation endpoint with Token
+        $response = Http::withHeaders([
+            'Token' => $token,
             'Content-Type' => 'application/json',
-        ];
+        ])->post("{$this->baseUrl}/v2/shipping-order/fee", $payload);
 
-        $response = Http::withHeaders($headers)->post("{$this->baseUrl}/v2/shipping-order/fee", $payload);
-
-        if (! $response->successful()) {
-            Log::warning('GHN calculateFee fallback standard fee applied', ['payload' => $payload, 'status' => $response->status(), 'body' => $response->body()]);
-            $fee = ($toDistrictId === $this->fromDistrictId) ? 22000 : 30000;
-            return [
-                'total' => $fee,
-                'service_fee' => $fee,
-                'insurance_fee' => 0,
-                'pick_station_fee' => 0,
-                'coupon_value' => 0,
-                'r2s_fee' => 0,
-            ];
+        if ($response->successful() && !empty($response->json('data.total'))) {
+            return $response->json('data');
         }
 
-        return $response->json('data') ?? [
-            'total' => 30000,
-            'service_fee' => 30000,
+        // 2. Fallback with ShopId if required by certain sandbox accounts
+        $shopId = (int) config('services.ghn.shop_id', env('GHN_SHOP_ID', $this->shopId));
+        if ($shopId > 0) {
+            $payloadWithShop = array_merge($payload, ['shop_id' => $shopId]);
+            $responseWithShop = Http::withHeaders([
+                'Token' => $token,
+                'ShopId' => (string) $shopId,
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/v2/shipping-order/fee", $payloadWithShop);
+
+            if ($responseWithShop->successful() && !empty($responseWithShop->json('data.total'))) {
+                return $responseWithShop->json('data');
+            }
+        }
+
+        Log::warning('GHN calculateFee fallback standard fee applied', ['payload' => $payload, 'res' => $response->body()]);
+        $fee = ($toDistrictId === $this->fromDistrictId) ? 22000 : 35000;
+        return [
+            'total' => $fee,
+            'service_fee' => $fee,
             'insurance_fee' => 0,
+            'pick_station_fee' => 0,
+            'coupon_value' => 0,
+            'r2s_fee' => 0,
         ];
     }
 
