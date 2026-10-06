@@ -1,0 +1,50 @@
+@startuml 05b_User_Payment_MoMo_ATM
+title 5b. [User] Thanh toán MoMo qua Thẻ ATM nội địa (Napas)
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+|Khách hàng|
+:Chọn 'MoMo Thẻ ATM nội địa'\n& Bấm 'Thanh toán MoMo';
+|Giao diện|
+:Gửi POST /api/payment/momo/start\n(payType: 'payWithATM');
+|Payment Service|
+:Ký số HMAC-SHA256 &\nGọi API MoMo Gateway;
+|Cổng MoMo & CSDL|
+:MoMo tiếp nhận & Cấp URL\nCổng thanh toán ATM Napas;
+|Giao diện|
+:Chuyển hướng trình duyệt\nsang Cổng thanh toán MoMo;
+|Khách hàng|
+:Chọn Ngân hàng, nhập Số thẻ\nATM nội địa & Nhập mã OTP;
+|Cổng MoMo & CSDL|
+if (Xác thực thẻ & OTP đúng?) then (Thất bại (Sai OTP/Số dư))
+  |Giao diện|
+  :Báo lỗi sai mã OTP\nhoặc số dư thẻ không đủ;
+  stop
+  detach
+else (Thành công)
+  |Cổng MoMo & CSDL|
+  :MoMo trừ tiền thẻ thành công\n& Gửi Webhook IPN (code=0);
+  |Payment Service|
+  :Xác thực chữ ký IPN &\nCập nhật status = 'paid';
+  |Cổng MoMo & CSDL|
+  :Lưu trans_id vào bảng\npayment_transactions;
+  |Giao diện|
+  :Điều hướng về /payment/callback\nToast 'Thanh toán MoMo thành công';
+  |Khách hàng|
+  :Nhận hóa đơn điện tử &\nTheo dõi trạng thái đơn;
+  stop
+  detach
+endif
+@enduml

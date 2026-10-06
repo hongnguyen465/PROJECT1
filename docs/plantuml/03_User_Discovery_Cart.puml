@@ -1,0 +1,50 @@
+@startuml 03_User_Discovery_Cart
+title 3. [User] Khám phá sản phẩm & Quản lý giỏ hàng
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+|Khách hàng|
+:Tìm kiếm theo từ khóa\nhoặc lọc Danh mục / Giá;
+|Giao diện|
+:Gửi request GET /products\nkèm query params;
+|Hệ thống xử lý|
+:Catalog Service xử lý\nphân trang & truy vấn;
+|Cơ sở dữ liệu|
+:Lấy danh sách Products &\nVariants (Color/Size/Price);
+|Giao diện|
+:Hiển thị Grid sản phẩm &\nChi tiết tồn kho từng SKU;
+|Khách hàng|
+:Chọn Size, Màu sắc &\nBấm 'Thêm vào giỏ hàng';
+|Giao diện|
+:Gửi POST /api/cart/items\n(user_id, sku_id, qty);
+|Hệ thống xử lý|
+:Order Service kiểm tra\nsố lượng tồn kho khả dụng;
+|Hệ thống xử lý|
+if (Đủ số lượng tồn kho?) then (Hết hàng / Vượt tồn)
+  |Giao diện|
+  :Thông báo sản phẩm\nđã hết hàng hoặc vượt tồn;
+  stop
+  detach
+else (Đủ hàng khả dụng)
+  |Cơ sở dữ liệu|
+  :Lưu / Cập nhật bản ghi\ntrong bảng cart_items;
+  |Giao diện|
+  :Cập nhật Badge giỏ hàng &\nHiển thị Toast thành công;
+  |Khách hàng|
+  :Kiểm tra giỏ hàng &\nChuẩn bị Checkout;
+  stop
+  detach
+endif
+@enduml

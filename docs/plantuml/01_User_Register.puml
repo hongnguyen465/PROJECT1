@@ -1,0 +1,46 @@
+@startuml 01_User_Register
+title 1. [User] Đăng ký tài khoản mới
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+|Khách hàng|
+:Mở trang Đăng ký &\nNhập Tên, Email, SĐT, Pass;
+|Giao diện|
+:Validate Regex form &\nGửi POST /api/auth/register;
+|Hệ thống xử lý|
+:Gateway định tuyến request\nsang Auth Service;
+|Cơ sở dữ liệu|
+:Truy vấn kiểm tra\ntrùng lặp Email / SĐT;
+|Hệ thống xử lý|
+:Kiểm tra tính duy nhất\ncủa tài khoản người dùng;
+|Hệ thống xử lý|
+if (Email / SĐT khả dụng?) then (Không hợp lệ (Đã tồn tại))
+  |Giao diện|
+  :Thông báo Email hoặc SĐT\nđã được đăng ký;
+  stop
+  detach
+else (Hợp lệ (Khả dụng))
+  |Hệ thống xử lý|
+  :Mã hóa Bcrypt mật khẩu &\nGán role = 'customer';
+  |Cơ sở dữ liệu|
+  :Lưu bản ghi mới vào\nbảng users (status: active);
+  |Giao diện|
+  :Toast 'Đăng ký thành công'\n& Chuyển sang Đăng nhập;
+  |Khách hàng|
+  :Sẵn sàng đăng nhập vào\nhệ thống để mua sắm;
+  stop
+  detach
+endif
+@enduml

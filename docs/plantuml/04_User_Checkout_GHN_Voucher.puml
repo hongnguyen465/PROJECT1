@@ -1,0 +1,52 @@
+@startuml 04_User_Checkout_GHN_Voucher
+title 4. [User] Đặt hàng, Tính phí GHN & Voucher
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+|Khách hàng|
+:Chọn địa chỉ nhận hàng\n(Tỉnh/Huyện/Xã) & Mã giảm;
+|Giao diện|
+:Gọi API tính phí ship &\nKiểm tra mã Voucher;
+|Hệ thống xử lý|
+:Order Service gọi GHN API\n& Tính giá trị giảm giá;
+|GHN API & CSDL|
+:GHN trả cước ship chính xác\n& DB trả % discount voucher;
+|Hệ thống xử lý|
+if (Dữ liệu hợp lệ?) then (Không hợp lệ (Sai địa chỉ/Hạn))
+  |Giao diện|
+  :Báo lỗi địa chỉ chưa đúng\nhoặc Voucher hết hạn;
+  stop
+  detach
+else (Hợp lệ)
+  |Giao diện|
+  :Render tổng tiền:\nTiền hàng + Ship - Voucher;
+  |Khách hàng|
+  :Chọn PTTT (COD/MoMo ATM)\nvà bấm 'Đặt hàng ngay';
+  |Giao diện|
+  :Gửi POST /api/orders\nkèm toàn bộ payload đơn;
+  |Hệ thống xử lý|
+  :Kiểm tra hợp lệ lần cuối\n& Khởi tạo Transaction;
+  |GHN API & CSDL|
+  :Lưu orders, order_items\nvà xóa giỏ hàng cart;
+  |Hệ thống xử lý|
+  :Thiết lập trạng thái\nstatus = 'pending' (Chờ duyệt);
+  |Giao diện|
+  :Điều hướng sang trang\nThanh toán hoặc Hoàn tất;
+  |Khách hàng|
+  :Nhận mã đơn hàng &\nTheo dõi trạng thái;
+  stop
+  detach
+endif
+@enduml

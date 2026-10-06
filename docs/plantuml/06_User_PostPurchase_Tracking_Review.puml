@@ -1,0 +1,53 @@
+@startuml 06_User_PostPurchase_Tracking_Review
+title 6. [User] Theo dõi GHN, Hủy đơn & Đánh giá
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+:Xem danh sách đơn hàng\ntại 'Lịch sử mua hàng';
+
+|Giao diện|
+:Hiển thị trạng thái đơn &\nTracking Code GHN;
+
+|Khách hàng|
+:Chọn thao tác:\nTra cứu / Hủy / Đánh giá;
+
+|Hệ thống xử lý|
+if (Trạng thái đơn hàng?) then (Đơn chưa duyệt - Hủy đơn)
+  |Hệ thống xử lý|
+  :Xử lý hủy đơn 'pending'\n& Hoàn lại kho SKU;
+
+  |Giao diện|
+  :Cập nhật status = cancelled;
+  stop
+  detach
+else (Đơn đã hoàn tất - Đánh giá)
+  |Khách hàng|
+  :Nhận hàng (completed) &\nGửi Form 5 Sao + Review;
+
+  |Hệ thống xử lý|
+  :Catalog Service kiểm tra\nquyền mua & lưu Review;
+
+  |GHN API & CSDL|
+  :Lưu bảng reviews &\nTính lại Rating trung bình;
+
+  |Giao diện|
+  :Hiển thị đánh giá công khai\ntrên trang chi tiết SP;
+
+  |Khách hàng|
+  :Hoàn tất đánh giá;
+  stop
+  detach
+endif
+@enduml

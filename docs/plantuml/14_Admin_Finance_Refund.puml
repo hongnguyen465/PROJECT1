@@ -1,0 +1,48 @@
+@startuml 14_Admin_Finance_Refund
+title 14. [Admin] Quản lý Tài chính & Hoàn tiền MoMo
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Mở tab 'Tài chính & Hoàn tiền'\nXem yêu cầu hoàn tiền;
+|Giao diện|
+:Hiển thị mã giao dịch,\nsố tiền & lý do hủy đơn;
+|Quản trị viên|
+:Kiểm tra điều kiện &\nBấm 'Duyệt hoàn tiền MoMo';
+|Giao diện|
+:Gửi POST /api/finance/refund\n(trans_id, amount);
+|Payment Service|
+:Ký số HMAC-SHA256 &\nGọi API MoMo Refund;
+|Cổng MoMo & CSDL|
+if (MoMo hoàn tất hoàn tiền?) then (Thất bại (Hết số dư/Quá hạn))
+  |Giao diện|
+  :Báo lỗi số dư MoMo Merchant\nhoặc giao dịch quá hạn;
+  stop
+  detach
+else (Thành công)
+  |Cổng MoMo & CSDL|
+  :MoMo xử lý chuyển tiền\nvề tài khoản của Khách hàng;
+  |Cổng MoMo & CSDL|
+  :Cập nhật refund_status='success'\nvà lưu sổ financial_logs;
+  |Payment Service|
+  :Đồng bộ trạng thái đơn\norder_status = 'refunded';
+  |Giao diện|
+  :Hiển thị Badge 'Đã hoàn tiền'\nvà Toast thông báo thành công;
+  |Quản trị viên|
+  :Đối soát thành công khoản\ntiền hoàn trả khách hàng;
+  stop
+  detach
+endif
+@enduml

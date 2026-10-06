@@ -1,0 +1,46 @@
+@startuml 10_Admin_Voucher_Management
+title 10. [Admin] Quản trị Voucher & Khuyến mãi
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Mở trang 'Quản trị Voucher'\n& Chọn 'Tạo mã mới';
+|Giao diện|
+:Hiển thị Form nhập Mã code,\n% giảm, Max giảm & Hạn dùng;
+|Quản trị viên|
+:Thiết lập điều kiện: Đơn tối thiểu\n& Giới hạn lượt sử dụng;
+|Giao diện|
+:Gửi POST /api/admin/coupons\nkèm cấu hình khuyến mãi;
+|Hệ thống xử lý|
+:Kiểm tra trùng lặp mã Code\n& Hạn sử dụng tương lai;
+|Hệ thống xử lý|
+if (Mã Voucher hợp lệ?) then (Không hợp lệ (Trùng mã/Hết hạn))
+  |Giao diện|
+  :Báo lỗi mã Voucher đã tồn tại\nhoặc hạn dùng không hợp lệ;
+  stop
+  detach
+else (Hợp lệ)
+  |Cơ sở dữ liệu|
+  :Lưu bản ghi vào bảng coupons\n(usage_limit, discount_val);
+  |Hệ thống xử lý|
+  :Kích hoạt trạng thái Active\nvà trả về danh sách mới;
+  |Giao diện|
+  :Hiển thị Voucher mới trên\nbảng quản trị & Toast báo;
+  |Quản trị viên|
+  :Voucher sẵn sàng áp dụng\ntại bước Checkout KH;
+  stop
+  detach
+endif
+@enduml

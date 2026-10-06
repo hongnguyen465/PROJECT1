@@ -1,0 +1,48 @@
+@startuml 11_Admin_Banner_Settings
+title 11. [Admin] Quản trị Banner & Giao diện
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Mở mục 'Quản lý Banner'\n& Chọn Thêm Banner mới;
+|Giao diện|
+:Mở Form Upload ảnh Banner,\nTiêu đề & Link điều hướng;
+|Quản trị viên|
+:Chọn ảnh Poster khuyến mãi\nvà nhập thứ tự hiển thị (Order);
+|Giao diện|
+:Validate file ảnh &\nGửi POST /api/admin/banners;
+|Hệ thống xử lý|
+:Kiểm tra định dạng (JPG/PNG)\n& Kích thước tệp tin ảnh;
+|Hệ thống xử lý|
+if (Ảnh hợp lệ?) then (Không hợp lệ (Sai định dạng/Size))
+  |Giao diện|
+  :Báo lỗi file ảnh sai định dạng\nhoặc vượt quá 5MB;
+  stop
+  detach
+else (Hợp lệ)
+  |Hệ thống xử lý|
+  :Xử lý nén ảnh &\nLưu vào Storage public;
+  |Cơ sở dữ liệu|
+  :Lưu bản ghi vào bảng banners\n(image_url, link, status);
+  |Hệ thống xử lý|
+  :Xóa Cache Banner trang chủ\n& Đồng bộ dữ liệu mới;
+  |Giao diện|
+  :Cập nhật Preview Slider\ntrực tiếp trên Admin;
+  |Quản trị viên|
+  :Banner hiển thị trực tiếp\ntại Slider Trang chủ Store;
+  stop
+  detach
+endif
+@enduml

@@ -1,0 +1,46 @@
+@startuml 08_Admin_Product_SKU
+title 8. [Admin] Quản lý Sản phẩm & Biến thể SKUs
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Truy cập 'Quản lý Sản phẩm'\n& Bấm 'Thêm Sản phẩm';
+|Giao diện|
+:Mở Form nhập Tên, Danh mục,\nBrand, Mô tả chi tiết;
+|Quản trị viên|
+:Tạo Ma trận SKU (Size, Color,\nGiá, Tồn kho) & Upload ảnh;
+|Giao diện|
+:Validate Form &\nGửi POST /api/admin/products;
+|Catalog Service|
+:Xác thực JWT Role = Admin\n& Xử lý Upload Media Gallery;
+|Catalog Service|
+if (Dữ liệu & SKU hợp lệ?) then (Không hợp lệ (Lỗi SKU/Form))
+  |Giao diện|
+  :Báo lỗi trùng mã SKU\nhoặc thiếu trường bắt buộc;
+  stop
+  detach
+else (Hợp lệ)
+  |Cơ sở dữ liệu|
+  :Transaction lưu products,\nproduct_variants, images;
+  |Catalog Service|
+  :Tạo chỉ mục tìm kiếm &\nĐồng bộ kho khả dụng;
+  |Giao diện|
+  :Hiển thị SP mới trên bảng\nvà Toast thông báo;
+  |Quản trị viên|
+  :Sản phẩm chính thức mở bán\ntrên Storefront;
+  stop
+  detach
+endif
+@enduml

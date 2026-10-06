@@ -1,0 +1,32 @@
+@startuml 05a_User_Payment_COD
+title 5a. [User] Thanh toán Tiền mặt khi nhận hàng (COD)
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+|Khách hàng|
+:Chọn phương thức 'COD'\n& Bấm 'Đặt hàng ngay';
+|Giao diện|
+:Gửi POST /api/orders\n(payment_method: 'COD');
+|Payment Service|
+:Payment Service khởi tạo đơn\npayment_status = 'unpaid';
+|Cơ sở dữ liệu|
+:Lưu orders, order_items\n& Trừ tồn kho khả dụng;
+|Giao diện|
+:Hiển thị màn hình\n'Đặt hàng COD thành công';
+|Khách hàng|
+:Nhận mã đơn hàng & Chờ\nshipper GHN giao thu tiền;
+|Khách hàng|
+stop
+@enduml

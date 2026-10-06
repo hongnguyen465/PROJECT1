@@ -1,0 +1,72 @@
+@startuml 05_User_Payment_COD_MoMo
+title 5. [User] Thanh toán (COD & MoMo Thẻ ATM nội địa)
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+:Chọn Phương thức thanh toán\n(COD hoặc MoMo ATM);
+
+|Giao diện|
+:Gửi yêu cầu khởi tạo đơn\nPOST /api/payment/checkout;
+
+|Payment Service|
+:Kiểm tra phương thức đã chọn;
+
+if (Phương thức thanh toán?) then (Nhánh 1: Tiền mặt COD)
+  |Payment Service|
+  :Ghi nhận đơn hàng COD (unpaid)\nChờ shipper GHN thu tiền mặt;
+
+  |Giao diện|
+  :Hiển thị màn hình\n'Đặt hàng COD thành công';
+
+  |Khách hàng|
+  :Hoàn tất đặt đơn COD\nChờ nhận hàng;
+  stop
+  detach
+else (Nhánh 2: MoMo Thẻ ATM Napas)
+  |Payment Service|
+  :Ký số HMAC-SHA256 &\nTạo link MoMo payUrl;
+
+  |Cổng MoMo & CSDL|
+  :MoMo cấp URL Cổng thanh toán\nThẻ ATM nội địa (Napas);
+
+  |Giao diện|
+  :Chuyển hướng trình duyệt\nsang Cổng thanh toán MoMo;
+
+  |Khách hàng|
+  :Chọn Ngân hàng, nhập Số thẻ\nATM nội địa & Nhập mã OTP;
+
+  |Cổng MoMo & CSDL|
+  if (Xác thực thẻ & OTP đúng?) then (Thất bại / Sai OTP)
+    |Giao diện|
+    :Báo lỗi sai mã OTP\nhoặc số dư thẻ không đủ;
+    stop
+    detach
+  else (Thành công)
+    |Cổng MoMo & CSDL|
+    :MoMo trừ tiền thẻ thành công\n& Gửi Webhook IPN (code=0);
+
+    |Payment Service|
+    :Xác thực chữ ký IPN &\nCập nhật status = 'paid';
+
+    |Giao diện|
+    :Điều hướng về /payment/callback\nBáo 'Thanh toán ATM thành công';
+
+    |Khách hàng|
+    :Nhận hóa đơn điện tử;
+    stop
+    detach
+  endif
+endif
+@enduml

@@ -1,0 +1,48 @@
+@startuml 12_Admin_Order_GHN_1Click
+title 12. [Admin] Quản trị Đơn hàng & GHN 1-Click
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Vào 'Quản lý Đơn hàng'\nXem danh sách đơn 'pending';
+|Giao diện|
+:Hiển thị chi tiết khách,\nđịa chỉ & nút '1-Click GHN';
+|Quản trị viên|
+:Kiểm tra hàng trong kho &\nBấm nút 'Đẩy đơn sang GHN';
+|Giao diện|
+:Gửi POST /api/orders/{id}/ghn\nkèm trọng lượng & kích thước;
+|Hệ thống xử lý|
+:Chuẩn hóa địa chỉ & Gọi API\nGHN: /shipping-order/create;
+|GHN API & CSDL|
+if (GHN tiếp nhận thành công?) then (Thất bại (Lỗi địa chỉ/Token))
+  |Giao diện|
+  :Báo lỗi GHN: Địa chỉ ngoài\nvùng phục vụ / Token hết hạn;
+  stop
+  detach
+else (Thành công (Cấp Tracking Code))
+  |GHN API & CSDL|
+  :GHN cấp mã vận đơn\nchính thức (tracking_code);
+  |Hệ thống xử lý|
+  :Cập nhật order_status = 'shipping'\nkèm tracking_code & Phiếu in;
+  |GHN API & CSDL|
+  :Lưu tracking_code vào\nbảng orders và order_logs;
+  |Giao diện|
+  :Hiển thị mã vận đơn GHN\nvà nút 'In phiếu giao A5';
+  |Quản trị viên|
+  :In vận đơn dán lên kiện hàng\nchờ shipper GHN tới lấy;
+  stop
+  detach
+endif
+@enduml

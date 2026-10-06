@@ -1,0 +1,52 @@
+@startuml 09_Admin_Customer_Management
+title 9. [Admin] Quản trị Khách hàng & Tài khoản
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Mở trang 'Quản lý Người dùng'\n& Tìm kiếm Email / SĐT;
+|Giao diện|
+:Gửi GET /api/admin/users\nkèm filter status/role;
+|Hệ thống xử lý|
+:Auth Service xác thực quyền\nAdmin & lấy danh sách;
+|Cơ sở dữ liệu|
+:Truy vấn bảng users &\nuser_addresses;
+|Giao diện|
+:Render danh sách khách hàng\nkèm nút Khóa / Đổi Role;
+|Quản trị viên|
+:Bấm 'Khóa tài khoản' (Ban)\nhoặc Cấp quyền Admin;
+|Giao diện|
+:Gửi PUT /api/admin/users/{id}\n(status = 'banned');
+|Hệ thống xử lý|
+:Kiểm tra User tồn tại &\nKhông cho tự khóa chính mình;
+|Hệ thống xử lý|
+if (Thao tác hợp lệ?) then (Không hợp lệ (Khóa Admin/Không tìm thấy))
+  |Giao diện|
+  :Báo lỗi không thể khóa\nSuper Admin / Không tìm thấy;
+  stop
+  detach
+else (Hợp lệ)
+  |Hệ thống xử lý|
+  :Thu hồi toàn bộ Refresh\nToken của User bị khóa;
+  |Cơ sở dữ liệu|
+  :Cập nhật status = 'banned'\ntrong bảng users;
+  |Giao diện|
+  :Cập nhật Badge trạng thái\nkhóa đỏ trên giao diện;
+  |Quản trị viên|
+  :Tài khoản bị vô hiệu hóa\nngay lập tức;
+  stop
+  detach
+endif
+@enduml

@@ -1,0 +1,46 @@
+@startuml 07_Admin_Category_Brand
+title 7. [Admin] Quản lý Danh mục & Thương hiệu
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Vào 'Danh mục & Hãng'\nChọn 'Thêm Danh mục mới';
+|Giao diện|
+:Mở Form nhập Tên danh mục,\nSlug, Danh mục cha & Icon;
+|Quản trị viên|
+:Chọn Thương hiệu liên kết\nvà Bấm 'Lưu Danh mục';
+|Giao diện|
+:Validate Client &\nGửi POST /api/admin/categories;
+|Catalog Service|
+:Kiểm tra tính duy nhất\ncủa Slug & Cây phân cấp;
+|Catalog Service|
+if (Slug khả dụng?) then (Không hợp lệ (Trùng lặp/Vòng lặp))
+  |Giao diện|
+  :Báo lỗi trùng tên danh mục\nhoặc vòng lặp cha-con;
+  stop
+  detach
+else (Hợp lệ (Khả dụng))
+  |Cơ sở dữ liệu|
+  :Lưu bản ghi vào bảng\ncategories và brands;
+  |Catalog Service|
+  :Xây dựng lại Cây danh mục\nvà Xóa Cache menu;
+  |Giao diện|
+  :Cập nhật Danh mục trên cây\nquản trị & Toast báo;
+  |Quản trị viên|
+  :Danh mục sẵn sàng để\ngán cho Sản phẩm mới;
+  stop
+  detach
+endif
+@enduml

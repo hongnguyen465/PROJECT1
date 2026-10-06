@@ -1,0 +1,44 @@
+@startuml 02_User_Login_JWT
+title 2. [User] Đăng nhập & Xác thực JWT
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Khách hàng|
+start
+|Khách hàng|
+:Mở trang Đăng nhập\nNhập Email & Mật khẩu;
+|Giao diện|
+:Validate Client &\nGửi POST /api/auth/login;
+|Hệ thống xử lý|
+:Gateway định tuyến request\nsang Auth Service;
+|Cơ sở dữ liệu|
+:Truy vấn Users bảng &\nLấy hash Bcrypt password;
+|Hệ thống xử lý|
+:So khớp Bcrypt password\n& Kiểm tra status active;
+|Hệ thống xử lý|
+if (Thông tin hợp lệ?) then (Không đúng (Sai Pass/Khóa))
+  |Giao diện|
+  :Hiển thị thông báo lỗi\nSai mật khẩu / Bị khóa;
+  stop
+  detach
+else (Hợp lệ (Đúng Pass))
+  |Hệ thống xử lý|
+  :Khởi tạo chuỗi JWT Token\n(user_id, role, expires);
+  |Giao diện|
+  :Lưu Token vào LocalStorage\n& Set Axios Header Auth;
+  |Khách hàng|
+  :Đăng nhập thành công &\nTruy cập tài khoản / Mua hàng;
+  stop
+  detach
+endif
+@enduml

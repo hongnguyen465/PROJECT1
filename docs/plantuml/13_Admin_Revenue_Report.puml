@@ -1,0 +1,44 @@
+@startuml 13_Admin_Revenue_Report
+title 13. [Admin] Báo cáo & Thống kê Doanh thu
+skinparam defaultFontName Helvetica
+skinparam ActivityFontSize 11
+skinparam ArrowFontSize 10
+skinparam ActivityBackgroundColor #FEFECE
+skinparam ActivityBorderColor #A80036
+skinparam ActivityBorderThickness 1.2
+skinparam ArrowColor #A80036
+skinparam ArrowThickness 1.2
+skinparam ActivityDiamondBackgroundColor #FEFECE
+skinparam ActivityDiamondBorderColor #A80036
+skinparam ActivityStartColor #000000
+skinparam ActivityEndColor #000000
+
+|Quản trị viên|
+start
+|Quản trị viên|
+:Vào 'Báo cáo Doanh thu'\nChọn Ngày/Tháng/Năm;
+|Giao diện|
+:Gửi GET /api/finance/revenue\n(from_date, to_date, filter);
+|Hệ thống xử lý|
+:Kiểm tra tính hợp lệ\ncủa khoảng thời gian lọc;
+|Hệ thống xử lý|
+if (Mốc ngày hợp lệ?) then (Không hợp lệ (Ngày bắt đầu > Ngày kết thúc))
+  |Giao diện|
+  :Báo lỗi: Ngày bắt đầu\nphải nhỏ hơn ngày kết thúc;
+  stop
+  detach
+else (Hợp lệ)
+  |Cơ sở dữ liệu|
+  :Truy vấn SUM(total_amount)\ntheo thời gian & danh mục;
+  |Hệ thống xử lý|
+  :Tổng hợp doanh số bán hàng\n& Tỷ trọng COD vs MoMo;
+  |Giao diện|
+  :Render Biểu đồ Cột/Đường &\nChỉ số KPI (AOV, GMV);
+  |Quản trị viên|
+  :Xem phân tích hoặc bấm\n'Xuất Excel / PDF Doanh thu';
+  |Giao diện|
+  :Tải file thống kê doanh thu\nvề máy tính Admin;
+  stop
+  detach
+endif
+@enduml
