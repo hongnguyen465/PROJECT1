@@ -3,134 +3,155 @@
 namespace App\Http\Controllers;
 
 use App\Models\Address;
+use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class AddressController extends Controller
 {
+    /**
+     * List all addresses for a user.
+     *
+     * @group Address Management
+     */
     public function index(Request $request): JsonResponse
     {
-        $userId = $request->input('user_id') ?? auth('api')->id();
-        if (!$userId) {
-            return response()->json(['success' => false, 'message' => 'User ID is required', 'data' => []], 400);
-        }
+        $validated = $request->validate([
+            'user_id' => ['required', 'integer', 'min:1'],
+        ]);
 
-        $addresses = Address::where('user_id', $userId)
+        $addresses = Address::where('user_id', $validated['user_id'])
             ->orderByDesc('is_default')
-            ->orderByDesc('id')
+            ->orderBy('id')
             ->get();
 
         return response()->json([
             'success' => true,
+            'message' => 'Lấy danh sách địa chỉ thành công.',
             'data' => $addresses,
+            'errors' => null,
         ]);
     }
 
+    /**
+     * Create a new address for a user.
+     *
+     * @group Address Management
+     */
     public function store(Request $request): JsonResponse
     {
-        $userId = $request->input('user_id') ?? auth('api')->id();
-        if (!$userId) {
-            return response()->json(['success' => false, 'message' => 'User ID is required'], 400);
-        }
-
         $validated = $request->validate([
-            'recipient_name' => ['required', 'string', 'max:255'],
-            'phone' => ['required', 'string', 'max:20'],
-            'province' => ['required', 'string', 'max:255'],
-            'district' => ['required', 'string', 'max:255'],
-            'ward' => ['required', 'string', 'max:255'],
+            'user_id'        => ['required', 'integer', 'exists:users,id'],
+            'recipient_name' => ['required', 'string', 'max:100'],
+            'phone'          => ['required', 'string', 'regex:/^[0-9\+\-\.\s]{9,15}$/'],
+            'province'       => ['required', 'string', 'max:100'],
+            'district'       => ['required', 'string', 'max:100'],
+            'ward'           => ['required', 'string', 'max:100'],
             'street_address' => ['required', 'string', 'max:255'],
-            'is_default' => ['sometimes', 'boolean'],
+            'is_default'     => ['sometimes', 'boolean'],
         ]);
 
-        $isDefault = !empty($validated['is_default']);
+        $address = DB::transaction(function () use ($validated): Address {
+            $isDefault = $validated['is_default'] ?? false;
 
-        // If this is first address or marked default
-        $count = Address::where('user_id', $userId)->count();
-        if ($count === 0) {
-            $isDefault = true;
-        } elseif ($isDefault) {
-            Address::where('user_id', $userId)->update(['is_default' => false]);
-        }
+            // If this is the first address or explicitly set as default, unset others first
+            $existingCount = Address::where('user_id', $validated['user_id'])->count();
+            if ($existingCount === 0 || $isDefault) {
+                Address::where('user_id', $validated['user_id'])
+                    ->update(['is_default' => false]);
+                $validated['is_default'] = true;
+            }
 
-        $address = Address::create([
-            'user_id' => $userId,
-            'recipient_name' => $validated['recipient_name'],
-            'phone' => $validated['phone'],
-            'province' => $validated['province'],
-            'district' => $validated['district'],
-            'ward' => $validated['ward'],
-            'street_address' => $validated['street_address'],
-            'is_default' => $isDefault,
-        ]);
+            return Address::create($validated);
+        });
 
         return response()->json([
             'success' => true,
-            'message' => 'Thêm địa chỉ thành công',
+            'message' => 'Đã thêm địa chỉ mới thành công.',
             'data' => $address,
+            'errors' => null,
         ], 201);
     }
 
-    public function update(Request $request, int $id): JsonResponse
+    /**
+     * Update an existing address.
+     *
+     * @group Address Management
+     */
+    public function update(Request $request, Address $address): JsonResponse
     {
-        $address = Address::find($id);
-        if (!$address) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy địa chỉ'], 404);
-        }
-
         $validated = $request->validate([
-            'recipient_name' => ['sometimes', 'string', 'max:255'],
-            'phone' => ['sometimes', 'string', 'max:20'],
-            'province' => ['sometimes', 'string', 'max:255'],
-            'district' => ['sometimes', 'string', 'max:255'],
-            'ward' => ['sometimes', 'string', 'max:255'],
+            'recipient_name' => ['sometimes', 'string', 'max:100'],
+            'phone'          => ['sometimes', 'string', 'regex:/^[0-9\+\-\.\s]{9,15}$/'],
+            'province'       => ['sometimes', 'string', 'max:100'],
+            'district'       => ['sometimes', 'string', 'max:100'],
+            'ward'           => ['sometimes', 'string', 'max:100'],
             'street_address' => ['sometimes', 'string', 'max:255'],
-            'is_default' => ['sometimes', 'boolean'],
+            'is_default'     => ['sometimes', 'boolean'],
         ]);
 
-        if (!empty($validated['is_default'])) {
-            Address::where('user_id', $address->user_id)->update(['is_default' => false]);
-        }
-
-        $address->update($validated);
+        DB::transaction(function () use ($address, $validated): void {
+            if (!empty($validated['is_default'])) {
+                Address::where('user_id', $address->user_id)
+                    ->where('id', '!=', $address->id)
+                    ->update(['is_default' => false]);
+            }
+            $address->update($validated);
+        });
 
         return response()->json([
             'success' => true,
-            'message' => 'Cập nhật địa chỉ thành công',
+            'message' => 'Cập nhật địa chỉ thành công.',
             'data' => $address->fresh(),
+            'errors' => null,
         ]);
     }
 
-    public function destroy(int $id): JsonResponse
+    /**
+     * Delete an address.
+     *
+     * @group Address Management
+     */
+    public function destroy(Address $address): JsonResponse
     {
-        $address = Address::find($id);
-        if (!$address) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy địa chỉ'], 404);
-        }
+        $userId = $address->user_id;
+        $wasDefault = $address->is_default;
 
         $address->delete();
 
+        // If deleted address was default, promote the next address
+        if ($wasDefault) {
+            $next = Address::where('user_id', $userId)->orderBy('id')->first();
+            $next?->update(['is_default' => true]);
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Đã xóa địa chỉ thành công',
+            'message' => 'Đã xóa địa chỉ thành công.',
+            'data' => null,
+            'errors' => null,
         ]);
     }
 
-    public function setDefault(int $id): JsonResponse
+    /**
+     * Set an address as the default for a user.
+     *
+     * @group Address Management
+     */
+    public function setDefault(Address $address): JsonResponse
     {
-        $address = Address::find($id);
-        if (!$address) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy địa chỉ'], 404);
-        }
-
-        Address::where('user_id', $address->user_id)->update(['is_default' => false]);
-        $address->is_default = true;
-        $address->save();
+        DB::transaction(function () use ($address): void {
+            Address::where('user_id', $address->user_id)
+                ->update(['is_default' => false]);
+            $address->update(['is_default' => true]);
+        });
 
         return response()->json([
             'success' => true,
-            'message' => 'Đã đặt làm địa chỉ mặc định',
-            'data' => $address,
+            'message' => 'Đã đặt làm địa chỉ mặc định.',
+            'data' => $address->fresh(),
+            'errors' => null,
         ]);
     }
 }

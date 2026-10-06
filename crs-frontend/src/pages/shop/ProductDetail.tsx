@@ -23,12 +23,14 @@ import { toast } from 'sonner'
 import { useApp } from '../../context/AppContext'
 import { fetchProducts } from '../../services/catalog'
 import { fetchReviews } from '../../services/reviews'
+import { fetchSalesSummary } from '../../services/orders'
 import { ProductCard } from '../../components/ProductCard'
 import type { Product, Review } from '../../types'
 
-const normalizeProduct = (p: any): Product => {
+const normalizeProduct = (p: any, salesMap: Record<string | number, number> = {}): Product => {
   const categoryName = typeof p.category === 'object' && p.category !== null ? (p.category.name ?? 'Khác') : (p.category ?? 'Khác')
   const brandName = typeof p.brand === 'object' && p.brand !== null ? (p.brand.name ?? 'STRIKER') : (p.brand ?? 'STRIKER')
+  const dynamicSold = Number(salesMap[p.id] ?? salesMap[Number(p.id)] ?? p.soldCount ?? p.sold_count ?? 0)
 
   return {
     ...p,
@@ -40,6 +42,7 @@ const normalizeProduct = (p: any): Product => {
     category: categoryName,
     brand: brandName,
     stock: Number(p.stock ?? 0),
+    soldCount: dynamicSold,
     image: p.image || (Array.isArray(p.images) ? p.images[0] : '') || p.image_url || '',
     images: Array.isArray(p.images) && p.images.length > 0 ? p.images : ((p.image || p.image_url) ? [p.image || p.image_url] : []),
     sizes: Array.isArray(p.sizes) && p.sizes.length > 0 ? p.sizes : (p.variants ? [...new Set(p.variants.map((v: any) => v.attributes?.size).filter(Boolean))] : ['Standard']),
@@ -83,10 +86,16 @@ export function ProductDetail() {
       let found: Product | undefined
 
       try {
-        const apiData = await fetchProducts({ per_page: 100 })
+        const [apiData, salesSummaryRes] = await Promise.all([
+          fetchProducts({ per_page: 100 }),
+          fetchSalesSummary().catch(() => ({} as Record<string | number, number>)),
+        ])
         const rawList: any[] = Array.isArray(apiData) ? apiData : (apiData?.data ?? [])
+        const salesMap = salesSummaryRes || {}
         if (Array.isArray(rawList)) {
-          const list = rawList.map(normalizeProduct)
+          const list = rawList
+            .filter((p: any) => p.is_active !== false && p.isActive !== false && p.status !== 'inactive')
+            .map((p) => normalizeProduct(p, salesMap))
           found = list.find((p: Product) => String(p.id) === String(id) || (p as any).slug === id)
           if (found) {
             const related = list
@@ -432,8 +441,8 @@ export function ProductDetail() {
                 {product.name}
               </h1>
 
-              {/* Rating & Stock Display by Selected Variant */}
-              <div className="flex items-center gap-4 text-xs">
+              {/* Rating, Sold Count & Stock Display by Selected Variant */}
+              <div className="flex flex-wrap items-center gap-3.5 text-xs">
                 <div className="flex items-center gap-1 text-amber-400">
                   {[...Array(5)].map((_, i) => (
                     <Star
@@ -453,6 +462,10 @@ export function ProductDetail() {
                     ({reviews.length > 0 ? `${reviews.length} đánh giá` : 'Chưa có đánh giá'})
                   </span>
                 </div>
+                <span className="text-slate-600">|</span>
+                <span className="text-slate-300 font-medium">
+                  Đã bán <b className="text-white font-bold">{product.soldCount && product.soldCount > 0 ? (product.soldCount > 999 ? `${(product.soldCount / 1000).toFixed(1)}k` : product.soldCount) : 0}</b>
+                </span>
                 <span className="text-slate-600">|</span>
                 {isOutOfStock ? (
                   <span className="font-bold text-rose-400 bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/20">

@@ -2,12 +2,12 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\StoreOrderRequest;
 use App\Models\Order;
 use App\Services\OrderService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Validator;
 
 class OrderController extends Controller
 {
@@ -20,52 +20,9 @@ class OrderController extends Controller
      *
      * @group Order Management
      */
-    public function store(Request $request): JsonResponse
+    public function store(StoreOrderRequest $request): JsonResponse
     {
-        $data = $request->all();
-        $phoneInput = $data['phone'] ?? $data['shipping_phone'] ?? null;
-        $nameInput = $data['name'] ?? $data['shipping_name'] ?? $data['full_name'] ?? null;
-        $addressInput = $data['address'] ?? $data['shipping_address'] ?? null;
-
-        $data['phone'] = $phoneInput;
-        $data['shipping_phone'] = $phoneInput;
-        $data['name'] = $nameInput;
-        $data['shipping_name'] = $nameInput;
-        $data['address'] = $addressInput;
-        $data['shipping_address'] = $addressInput;
-
-        $validator = Validator::make($data, [
-            'user_id' => ['sometimes', 'nullable', 'integer', 'min:1'],
-            'name' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'shipping_name' => ['sometimes', 'nullable', 'string', 'max:100'],
-            'phone' => ['required', 'string', 'regex:/^(0|\+84)[0-9]{8,11}$/'],
-            'shipping_phone' => ['sometimes', 'nullable', 'string'],
-            'address' => ['sometimes', 'nullable', 'string'],
-            'shipping_address' => ['sometimes', 'nullable', 'string'],
-            'to_district_id' => ['sometimes', 'nullable'],
-            'to_ward_code' => ['sometimes', 'nullable'],
-            'shipping_fee' => ['sometimes', 'numeric', 'min:0'],
-            'discount_amount' => ['sometimes', 'numeric', 'min:0'],
-            'payment_method' => ['sometimes', 'string', 'in:cod,momo'],
-            'coupon_id' => ['sometimes', 'nullable', 'integer', 'exists:coupons,id'],
-            'coupon_code' => ['sometimes', 'nullable', 'string'],
-            'note' => ['sometimes', 'nullable', 'string'],
-            'items' => ['sometimes', 'array'],
-            'items.*.product_id' => ['required_with:items', 'integer', 'min:1'],
-            'items.*.product_name' => ['sometimes', 'nullable', 'string'],
-            'items.*.name' => ['sometimes', 'nullable', 'string'],
-            'items.*.price' => ['required_with:items', 'numeric', 'min:0'],
-            'items.*.quantity' => ['required_with:items', 'integer', 'min:1'],
-            'items.*.size' => ['sometimes', 'nullable', 'string'],
-            'items.*.selectedSize' => ['sometimes', 'nullable', 'string'],
-            'items.*.color' => ['sometimes', 'nullable', 'string'],
-            'items.*.selectedColor' => ['sometimes', 'nullable', 'string'],
-            'items.*.sku' => ['sometimes', 'nullable', 'string'],
-            'items.*.image' => ['sometimes', 'nullable', 'string'],
-            'items.*.product_image' => ['sometimes', 'nullable', 'string'],
-        ]);
-
-        $validated = $validator->validate();
+        $validated = $request->validated();
 
         try {
             $result = $this->orderService->createOrder($validated);
@@ -134,16 +91,62 @@ class OrderController extends Controller
     }
 
     /**
-     * Show an order by ID.
+     * Get real-time product sales summary (sold count grouped by product_id).
+     */
+    public function salesSummary(): JsonResponse
+    {
+        $sales = \App\Models\OrderItem::join('orders', 'order_items.order_id', '=', 'orders.id')
+            ->whereNotIn('orders.order_status', ['cancelled'])
+            ->whereNotIn('orders.status', ['cancelled'])
+            ->selectRaw('order_items.product_id, SUM(order_items.quantity) as sold_count')
+            ->groupBy('order_items.product_id')
+            ->pluck('sold_count', 'product_id');
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Lấy tổng hợp lượt bán thành công.',
+            'data' => $sales,
+            'errors' => null,
+        ]);
+    }
+
+    /**
+     * Resolve Order model by ID, order_number, or order_code.
+     */
+    private function resolveOrder($order): ?Order
+    {
+        if ($order instanceof Order) {
+            return $order;
+        }
+
+        return Order::where('id', $order)
+            ->orWhere('order_number', $order)
+            ->orWhere('order_code', $order)
+            ->first();
+    }
+
+    /**
+     * Show an order by ID or code.
      *
      * @group Order Management
      */
-    public function show(Order $order): JsonResponse
+    public function show($order): JsonResponse
     {
+        $orderModel = $this->resolveOrder($order);
+
+        if (!$orderModel) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy đơn hàng.',
+                'data' => null,
+                'errors' => ['order' => ['Không tìm thấy đơn hàng.']],
+            ], 404);
+        }
+
         return response()->json([
             'success' => true,
             'message' => 'Lấy thông tin đơn hàng thành công.',
-            'data' => $order->load(['items', 'coupon']),
+            'data' => $orderModel->load(['items', 'coupon']),
             'errors' => null,
         ]);
     }
@@ -153,8 +156,19 @@ class OrderController extends Controller
      *
      * @group Order Management
      */
-    public function updateStatus(Request $request, Order $order): JsonResponse
+    public function updateStatus(Request $request, $order): JsonResponse
     {
+        $orderModel = $this->resolveOrder($order);
+
+        if (!$orderModel) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy đơn hàng.',
+                'data' => null,
+                'errors' => ['order' => ['Không tìm thấy đơn hàng.']],
+            ], 404);
+        }
+
         $validated = $request->validate([
             'order_status' => ['sometimes', 'string', 'in:pending,processing,shipping,delivered,cancelled,refund_pending,refunded'],
             'payment_status' => ['sometimes', 'string', 'in:unpaid,pending,paid,failed,refunded,refund_pending'],
@@ -163,7 +177,7 @@ class OrderController extends Controller
             'refund_reason' => ['sometimes', 'nullable', 'string'],
         ]);
 
-        $updatedOrder = $this->orderService->updateOrderStatus($order, $validated);
+        $updatedOrder = $this->orderService->updateOrderStatus($orderModel, $validated);
 
         return response()->json([
             'success' => true,
@@ -178,15 +192,26 @@ class OrderController extends Controller
      *
      * @group Order Management
      */
-    public function createGhnShipping(Request $request, Order $order): JsonResponse
+    public function createGhnShipping(Request $request, $order): JsonResponse
     {
+        $orderModel = $this->resolveOrder($order);
+
+        if (!$orderModel) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không tìm thấy đơn hàng.',
+                'data' => null,
+                'errors' => ['order' => ['Không tìm thấy đơn hàng.']],
+            ], 404);
+        }
+
         $validated = $request->validate([
             'to_district_id' => ['sometimes', 'integer'],
             'to_ward_code' => ['sometimes', 'string'],
         ]);
 
         try {
-            $result = $this->orderService->createGhnShipping($order, $validated);
+            $result = $this->orderService->createGhnShipping($orderModel, $validated);
 
             return response()->json([
                 'success' => true,
@@ -213,27 +238,25 @@ class OrderController extends Controller
      */
     public function markPaid(Request $request, $order): JsonResponse
     {
-        $orderModel = $order instanceof Order
-            ? $order
-            : Order::where('id', $order)->orWhere('order_number', $order)->orWhere('order_code', $order)->first();
+        $orderModel = $this->resolveOrder($order);
 
         if (!$orderModel) {
             return response()->json([
                 'success' => false,
                 'message' => 'Không tìm thấy đơn hàng.',
+                'data' => null,
             ], 404);
         }
 
         $orderModel->update([
             'payment_status' => 'paid',
-            'order_status' => 'pending',
-            'status' => 'pending',
         ]);
 
         return response()->json([
             'success' => true,
-            'message' => "Đơn hàng #{$orderModel->id} đã được cập nhật thanh toán thành công.",
-            'data' => $orderModel->fresh(),
+            'message' => "Đơn hàng #{$orderModel->id} ({$orderModel->order_number}) đã được cập nhật thanh toán thành công.",
+            'data' => $orderModel->fresh(['items', 'coupon']),
+            'errors' => null,
         ]);
     }
 }

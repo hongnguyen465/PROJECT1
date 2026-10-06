@@ -2,14 +2,12 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class PaymentTransaction extends Model
 {
-    use HasFactory;
-
     protected $fillable = [
         'payment_id',
         'gateway',
@@ -20,10 +18,14 @@ class PaymentTransaction extends Model
         'raw_payload',
     ];
 
-    protected $casts = [
-        'amount' => 'float',
-        'raw_payload' => 'array',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'payment_id' => 'integer',
+            'amount' => 'decimal:2',
+            'raw_payload' => 'array',
+        ];
+    }
 
     public function payment(): BelongsTo
     {

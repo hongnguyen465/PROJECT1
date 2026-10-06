@@ -1,4 +1,4 @@
-import api from './api'
+import api from './api.js'
 import type { Order, OrderItem } from '../types'
 
 export interface CreateOrderPayload {
@@ -40,21 +40,21 @@ export async function createOrder(payload: CreateOrderPayload) {
       raw: response.data,
     }
   } catch (error: any) {
-    if (error?.response?.data?.errors) {
-      console.log('Lỗi validation:', error.response.data.errors)
-    }
     throw error
   }
 }
 
-export async function getMomoPayUrl(orderId: number | string, amount?: number): Promise<string | null> {
+export async function getMomoPayUrl(orderId: number | string, amount?: number, orderCode?: string): Promise<string | null> {
   try {
-    const response = await api.post('/payment/momo/start', { order_id: Number(orderId), amount: amount ?? 50000 })
-    return response.data?.data?.pay_url ?? response.data?.pay_url ?? null
-  } catch (error: any) {
-    if (error?.response?.data?.errors) {
-      console.log('Lỗi validation:', error.response.data.errors)
+    const isNum = typeof orderId === 'number' || (!isNaN(Number(orderId)) && !isNaN(parseFloat(String(orderId))))
+    const payload: Record<string, any> = {
+      order_id: isNum ? Number(orderId) : orderId,
+      order_code: orderCode || String(orderId),
+      amount: amount && amount > 0 ? Number(amount) : 50000,
     }
+    const response = await api.post('/payment/momo/start', payload)
+    return response.data?.data?.pay_url ?? response.data?.pay_url ?? null
+  } catch {
     return null
   }
 }
@@ -64,15 +64,6 @@ export async function fetchOrders(userId?: number) {
   if (userId) params.user_id = userId
   const response = await api.get('/orders', { params })
   return response.data?.data ?? response.data
-}
-
-export async function fetchSalesSummary(): Promise<Record<number, number>> {
-  try {
-    const response = await api.get('/orders/sales-summary')
-    return response.data?.data ?? response.data ?? {}
-  } catch {
-    return {}
-  }
 }
 
 export async function fetchAdminOrders(params?: { status?: string; search?: string; page?: number; per_page?: number }) {
@@ -99,6 +90,15 @@ export async function fetchOrderStats(): Promise<OrderStats> {
   }
 }
 
+export async function fetchSalesSummary(): Promise<Record<string | number, number>> {
+  try {
+    const response = await api.get('/orders/sales-summary')
+    return response.data?.data ?? {}
+  } catch {
+    return {}
+  }
+}
+
 export async function fetchOrderById(orderId: string) {
   const response = await api.get(`/orders/${orderId}`)
   return response.data?.data ?? response.data
@@ -118,7 +118,7 @@ export function mapBackendOrder(raw: Record<string, any>): Order {
   const items: OrderItem[] = (raw.items ?? raw.order_items ?? []).map((i: Record<string, any>) => {
     let img = i.image ?? i.product_image ?? i.product?.image ?? i.product?.image_url ?? (Array.isArray(i.images) ? i.images[0] : '') ?? ''
     if (img && typeof img === 'string' && !img.startsWith('http') && !img.startsWith('data:')) {
-      img = img.startsWith('/') ? `http://localhost:8000${img}` : `http://localhost:8000/storage/${img}`
+      img = img.startsWith('/') ? img : `/storage/${img}`
     }
     return {
       id: Number(i.product_id ?? i.id),

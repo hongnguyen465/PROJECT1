@@ -25,7 +25,7 @@ return [
     |
     */
 
-    'secret' => env('JWT_SECRET', 'cHPDyoVhVnrDUVz3BkLAExUsdEoJVQJV09VIzS7Sofb9fExDZGFCzXTFp0s0mPOt'),
+    'secret' => env('JWT_SECRET', 'striker_super_secret_jwt_key_2026_production_123456789'),
 
     /*
     |--------------------------------------------------------------------------

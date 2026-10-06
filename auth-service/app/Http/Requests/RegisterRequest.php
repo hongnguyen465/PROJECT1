@@ -15,21 +15,11 @@ class RegisterRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'email' => ['nullable', 'email', 'max:255'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'phone_number' => ['nullable', 'string', 'max:20'],
-            'identifier' => ['nullable', 'string', 'max:255'],
+            'email' => ['sometimes', 'nullable', 'string', 'email', 'max:255'],
+            'phone' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'phone_number' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'identifier' => ['sometimes', 'nullable', 'string', 'max:255'],
             'password' => ['required', 'string', 'min:6'],
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'name.required' => 'Họ và tên không được để trống.',
-            'password.required' => 'Mật khẩu không được để trống.',
-            'password.min' => 'Mật khẩu phải có tối thiểu 6 ký tự.',
-            'email.email' => 'Địa chỉ email không đúng định dạng.',
         ];
     }
 }

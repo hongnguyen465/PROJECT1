@@ -2,126 +2,161 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Http;
+use Throwable;
 
 class GatewayController extends Controller
 {
-    /**
-     * Map microservice port based on prefix
-     */
-    protected function getServiceUrl(string $path): string
+    public function auth(Request $request, ?string $any = null): Response|JsonResponse
     {
-        $segments = explode('/', ltrim($path, '/'));
-        $prefix = strtolower($segments[0] ?? '');
-
-        // Service mappings
-        $ports = [
-            // Auth service (8001)
-            'auth' => 8001,
-            'users' => 8001,
-            'user' => 8001,
-            'admin' => 8001,
-
-            // Catalog service (8002)
-            'products' => 8002,
-            'categories' => 8002,
-            'brands' => 8002,
-            'banners' => 8002,
-
-            // Order service (8003)
-            'orders' => 8003,
-            'cart' => 8003,
-            'coupons' => 8003,
-            'shipping' => 8003,
-            'reviews' => 8003,
-
-            // Payment service (8004)
-            'payment' => 8004,
-            'payments' => 8004,
-            'finance' => 8004,
-            'dashboard' => 8004,
-        ];
-
-        // Specific sub-route overrides
-        if ($prefix === 'admin' && isset($segments[1]) && $segments[1] !== 'chat') {
-            // e.g. admin/orders -> 8003, admin/products -> 8002, admin/finance -> 8004
-            $sub = strtolower($segments[1]);
-            if (in_array($sub, ['products', 'categories', 'brands', 'banners'])) {
-                $port = 8002;
-            } elseif (in_array($sub, ['orders', 'coupons'])) {
-                $port = 8003;
-            } elseif (in_array($sub, ['finance', 'dashboard', 'payments'])) {
-                $port = 8004;
-            } else {
-                $port = 8001;
-            }
-            return "http://127.0.0.1:{$port}/api/{$path}";
-        }
-
-        $port = $ports[$prefix] ?? 8001;
-        return "http://127.0.0.1:{$port}/api/{$path}";
+        return $this->forward($request, 'auth');
     }
 
-    /**
-     * Reverse Proxy Handler
-     */
-    public function handle(Request $request, string $path = '')
+    public function catalog(Request $request, ?string $any = null): Response|JsonResponse
     {
-        $targetUrl = $this->getServiceUrl($path);
-        $method = strtolower($request->method());
+        return $this->forward($request, 'catalog');
+    }
 
-        // Forward headers (strip host)
-        $headers = collect($request->header())
-            ->map(fn($v) => is_array($v) ? implode(', ', $v) : $v)
-            ->except(['host', 'content-length'])
-            ->toArray();
+    public function order(Request $request, ?string $any = null): Response|JsonResponse
+    {
+        return $this->forward($request, 'order');
+    }
 
-        // Prepare HTTP client
-        $client = Http::withHeaders($headers)
-            ->timeout(15)
-            ->withoutRedirecting();
+    public function payment(Request $request, ?string $any = null): Response|JsonResponse
+    {
+        return $this->forward($request, 'payment');
+    }
 
-        // Handle multipart / file uploads if any
-        if ($request->hasFile('*')) {
-            foreach ($request->allFiles() as $key => $file) {
-                if (is_array($file)) {
-                    foreach ($file as $f) {
-                        $client = $client->attach($key . '[]', fopen($f->getRealPath(), 'r'), $f->getClientOriginalName());
-                    }
-                } else {
-                    $client = $client->attach($key, fopen($file->getRealPath(), 'r'), $file->getClientOriginalName());
-                }
-            }
-        }
-
-        $queryParams = $request->query();
-        $body = $request->isJson() ? $request->json()->all() : $request->all();
+    private function forward(Request $request, string $service): JsonResponse|Response
+    {
+        $baseUrl = rtrim((string) config("services.microservices.{$service}"), '/');
+        $targetUrl = $baseUrl.'/'.ltrim($request->path(), '/');
 
         try {
-            if ($method === 'get' || $method === 'head') {
-                $response = $client->get($targetUrl, $queryParams);
-            } elseif ($method === 'post') {
-                $response = $client->withQueryParameters($queryParams)->post($targetUrl, $body);
-            } elseif ($method === 'put') {
-                $response = $client->withQueryParameters($queryParams)->put($targetUrl, $body);
-            } elseif ($method === 'patch') {
-                $response = $client->withQueryParameters($queryParams)->patch($targetUrl, $body);
-            } elseif ($method === 'delete') {
-                $response = $client->withQueryParameters($queryParams)->delete($targetUrl, $body);
-            } else {
-                $response = $client->withQueryParameters($queryParams)->send($method, $targetUrl, ['json' => $body]);
+            $contentType = $request->header('Content-Type', 'application/json');
+            $response = Http::withHeaders($this->forwardedHeaders($request))
+                ->withOptions(['http_errors' => false])
+                ->withBody($request->getContent(), $contentType)
+                ->send($request->method(), $targetUrl, [
+                    'query' => $request->query(),
+                ]);
+
+            $status = $response->status();
+            $decoded = $response->json();
+
+            // If downstream returned JSON or standard response
+            if ($status >= 200 && $status < 300) {
+                if (is_array($decoded)) {
+                    $payload = [
+                        'success' => true,
+                        'data' => array_key_exists('data', $decoded) ? $decoded['data'] : $decoded,
+                        'message' => $decoded['message'] ?? 'Thao tác thành công.',
+                    ];
+                    if (isset($decoded['pagination'])) {
+                        $payload['pagination'] = $decoded['pagination'];
+                    }
+                    if (isset($decoded['stats'])) {
+                        $payload['stats'] = $decoded['stats'];
+                    }
+                    if (isset($decoded['token'])) {
+                        $payload['token'] = $decoded['token'];
+                    }
+                    if (isset($decoded['user'])) {
+                        $payload['user'] = $decoded['user'];
+                    }
+                    return response()->json($payload, $status);
+                }
+
+                return response()->json([
+                    'success' => true,
+                    'data' => $response->body() ?: null,
+                    'message' => 'Thao tác thành công.',
+                ], $status);
             }
 
-            return response($response->body(), $response->status())
-                ->header('Content-Type', $response->header('Content-Type') ?? 'application/json');
-        } catch (\Exception $e) {
+            // Error response envelope (4xx / 5xx)
+            $code = 'ERROR_'.$status;
+            $message = 'Đã có lỗi xảy ra.';
+
+            if (is_array($decoded)) {
+                if (!empty($decoded['message'])) {
+                    $message = $decoded['message'];
+                } elseif (!empty($decoded['error']['message'])) {
+                    $message = $decoded['error']['message'];
+                } elseif (!empty($decoded['error']) && is_string($decoded['error'])) {
+                    $message = $decoded['error'];
+                } elseif (!empty($decoded['errors']) && is_array($decoded['errors'])) {
+                    $first = reset($decoded['errors']);
+                    $message = is_array($first) ? ($first[0] ?? 'Dữ liệu không hợp lệ.') : (string) $first;
+                }
+
+                if (!empty($decoded['error']['code'])) {
+                    $code = $decoded['error']['code'];
+                } elseif ($status === 401) {
+                    $code = 'UNAUTHORIZED';
+                } elseif ($status === 403) {
+                    $code = 'FORBIDDEN';
+                } elseif ($status === 404) {
+                    $code = 'NOT_FOUND';
+                } elseif ($status === 422) {
+                    $code = 'VALIDATION_ERROR';
+                } elseif ($status >= 500) {
+                    $code = 'INTERNAL_ERROR';
+                    $message = 'Lỗi hệ thống máy chủ, vui lòng thử lại sau.';
+                }
+            } else {
+                if ($status === 404) {
+                    $code = 'NOT_FOUND';
+                    $message = 'Tài nguyên không tìm thấy.';
+                } elseif ($status >= 500) {
+                    $code = 'INTERNAL_ERROR';
+                    $message = 'Lỗi hệ thống máy chủ, vui lòng thử lại sau.';
+                }
+            }
+
+            $errorPayload = [
+                'success' => false,
+                'error' => [
+                    'code' => $code,
+                    'message' => $message,
+                ],
+            ];
+
+            if (is_array($decoded) && !empty($decoded['errors'])) {
+                $errorPayload['error']['details'] = $decoded['errors'];
+            }
+
+            return response()->json($errorPayload, $status);
+        } catch (ConnectionException|Throwable $exception) {
+            report($exception);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Lỗi kết nối tới dịch vụ nội bộ: ' . $e->getMessage(),
-                'target' => $targetUrl,
+                'error' => [
+                    'code' => 'SERVICE_UNAVAILABLE',
+                    'message' => 'Dịch vụ '.$service.' tạm thời không khả dụng, vui lòng thử lại sau.',
+                ],
             ], 503);
         }
+    }
+
+    private function forwardedHeaders(Request $request): array
+    {
+        $excluded = [
+            'host',
+            'content-length',
+            'connection',
+            'transfer-encoding',
+            'content-encoding',
+        ];
+
+        return collect($request->headers->all())
+            ->reject(fn (array $values, string $name): bool => in_array(strtolower($name), $excluded, true))
+            ->map(fn (array $values): string => implode(', ', $values))
+            ->all();
     }
 }

@@ -12,21 +12,24 @@ class OtpMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(
-        public string $otp
-    ) {}
+    public $otp; // Khai báo biến lưu mã OTP
+
+    public function __construct($otp)
+    {
+        $this->otp = $otp; // Nhận mã OTP khi khởi tạo
+    }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Mã xác thực OTP tài khoản STRIKER',
+            subject: 'Mã xác thực tài khoản của bạn', // Tiêu đề email
         );
     }
 
     public function content(): Content
     {
         return new Content(
-            htmlString: "<h2>Mã xác thực OTP của bạn là: <strong style='color:#10b981;font-size:24px;'>{$this->otp}</strong></h2><p>Mã có hiệu lực trong vòng 10 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>",
+            view: 'emails.otp', // Đường dẫn tới file giao diện email
         );
     }
 }

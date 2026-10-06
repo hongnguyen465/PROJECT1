@@ -5,7 +5,6 @@ import { Link, useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { useApp } from '../context/AppContext'
 import { CouponModal } from './CouponModal'
-import { formatVND } from '../utils'
 
 
 const getCartItemImageUrl = (item: any) => {
@@ -16,8 +15,9 @@ const getCartItemImageUrl = (item: any) => {
     ''
   if (!raw) return 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=300&q=80'
   if (raw.startsWith('http') || raw.startsWith('data:')) return raw
-  if (raw.startsWith('/storage/')) return `http://localhost:8000${raw}`
-  return `http://localhost:8000/storage/${raw}`
+  if (raw.startsWith('/storage/')) return raw
+  if (raw.startsWith('/')) return raw
+  return `/storage/${raw}`
 }
 
 //Ngăn kéo giỏ hàng trượt ra từ cạnh màn hình.
@@ -45,7 +45,7 @@ export function CartDrawer() {
   const handleCheckout = () => {
     setCartDrawerOpen(false)
     if (!user) {
-      toast.info('Vui lòng đăng nhập để tiến hành thanh toán!')
+      toast.error('Vui lòng đăng nhập để tiến hành thanh toán!')
       navigate('/login', { state: { from: '/checkout' } })
     } else {
       navigate('/checkout')
@@ -147,11 +147,10 @@ export function CartDrawer() {
                       <motion.div
                         layout
                         key={item.cartItemId}
-                        className={`flex gap-3 rounded-2xl border p-3 transition ${
-                          item.selected === false
+                        className={`flex gap-3 rounded-2xl border p-3 transition ${item.selected === false
                             ? 'border-white/5 bg-[#0B0E17]/40 opacity-60'
                             : 'border-white/10 bg-[#0B0E17]/60'
-                        }`}
+                          }`}
                       >
                         {/* Checkbox */}
                         <input
@@ -237,7 +236,7 @@ export function CartDrawer() {
 
                           <div className="flex items-center justify-between pt-1">
                             <span className="font-mono text-xs font-black text-lime-300">
-                              {formatVND(item.price * item.quantity)}
+                              {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                             </span>
 
                             {/* Quantity Control */}
@@ -322,7 +321,7 @@ export function CartDrawer() {
                     <div className="flex justify-between text-slate-400">
                       <span>Tiền hàng</span>
                       <span className="font-mono text-white">
-                        {formatVND(cartSubtotal)}
+                        {cartSubtotal.toLocaleString('vi-VN')}đ
                       </span>
                     </div>
 
@@ -330,7 +329,7 @@ export function CartDrawer() {
                       <div className="flex justify-between text-emerald-400 font-semibold">
                         <span>Giảm giá Voucher ({appliedCoupon?.code})</span>
                         <span className="font-mono">
-                          -{formatVND(discountAmount)}
+                          -{discountAmount.toLocaleString('vi-VN')}đ
                         </span>
                       </div>
                     )}
@@ -338,7 +337,7 @@ export function CartDrawer() {
                     <div className="flex justify-between border-t border-white/10 pt-2 text-sm">
                       <span className="font-bold text-white">Tổng tiền</span>
                       <b className="font-mono text-base font-black text-lime-300">
-                        {formatVND(cartTotal)}
+                        {cartTotal.toLocaleString('vi-VN')}đ
                       </b>
                     </div>
                   </div>

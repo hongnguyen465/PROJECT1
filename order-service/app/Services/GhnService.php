@@ -100,10 +100,9 @@ class GhnService
         int $height = 10,
         int $insuranceValue = 0
     ): array {
-        $shopId = (int) config('services.ghn.shop_id', env('GHN_SHOP_ID', $this->shopId));
+        $token = (string) config('services.ghn.token', env('GHN_TOKEN', $this->token));
 
         $payload = [
-            'shop_id' => $shopId,
             'from_district_id' => $this->fromDistrictId,
             'to_district_id' => $toDistrictId,
             'to_ward_code' => (string) $toWardCode,
@@ -113,26 +112,43 @@ class GhnService
             'width' => max(5, $width),
             'height' => max(5, $height),
             'insurance_value' => max(0, $insuranceValue),
-            'coupon' => null,
         ];
 
-        $headers = [
-            'Token' => (string) config('services.ghn.token', env('GHN_TOKEN', $this->token)),
-            'token' => (string) config('services.ghn.token', env('GHN_TOKEN', $this->token)),
-            'ShopId' => $shopId,
-            'shop_id' => $shopId,
+        // 1. Direct call to GHN calculation endpoint with Token
+        $response = Http::withHeaders([
+            'Token' => $token,
             'Content-Type' => 'application/json',
-        ];
+        ])->post("{$this->baseUrl}/v2/shipping-order/fee", $payload);
 
-        $response = Http::withHeaders($headers)->post("{$this->baseUrl}/v2/shipping-order/fee", $payload);
-
-        if (! $response->successful()) {
-            Log::error('GHN calculateFee error', ['payload' => $payload, 'status' => $response->status(), 'body' => $response->body()]);
-            $msg = $response->json('message') ?? $response->json('code_message_value') ?? 'Lỗi tính phí giao hàng GHN.';
-            throw new Exception($msg);
+        if ($response->successful() && !empty($response->json('data.total'))) {
+            return $response->json('data');
         }
 
-        return $response->json('data') ?? [];
+        // 2. Fallback with ShopId if required by certain sandbox accounts
+        $shopId = (int) config('services.ghn.shop_id', env('GHN_SHOP_ID', $this->shopId));
+        if ($shopId > 0) {
+            $payloadWithShop = array_merge($payload, ['shop_id' => $shopId]);
+            $responseWithShop = Http::withHeaders([
+                'Token' => $token,
+                'ShopId' => (string) $shopId,
+                'Content-Type' => 'application/json',
+            ])->post("{$this->baseUrl}/v2/shipping-order/fee", $payloadWithShop);
+
+            if ($responseWithShop->successful() && !empty($responseWithShop->json('data.total'))) {
+                return $responseWithShop->json('data');
+            }
+        }
+
+        Log::warning('GHN calculateFee fallback standard fee applied', ['payload' => $payload, 'res' => $response->body()]);
+        $fee = ($toDistrictId === $this->fromDistrictId) ? 22000 : 35000;
+        return [
+            'total' => $fee,
+            'service_fee' => $fee,
+            'insurance_fee' => 0,
+            'pick_station_fee' => 0,
+            'coupon_value' => 0,
+            'r2s_fee' => 0,
+        ];
     }
 
     /**
@@ -173,7 +189,7 @@ class GhnService
         $payload = [
             'shop_id' => $shopId,
             'client_order_code' => $order->order_number ?: ($order->order_code ?: ('ORD-' . $order->id)),
-            'payment_type_id' => 1, // 1: Bên gửi (Shop) trả phí cước GHN, tiền ship đã được cộng vào cod_amount để GHN thu hộ và đối soát lại cho shop
+            'payment_type_id' => 1, // 1: Shop trả phí cước vận chuyển trực tiếp. cod_amount là tiền thu hộ.
             'note' => $customData['note'] ?? $order->note ?? 'Hàng giá trị cao, vui lòng cho xem và thử hàng.',
             'required_note' => $customData['required_note'] ?? 'CHOTHUHANG',
             'from_name' => 'CRS Cyber-Sport Store',

@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
 import {
   ArrowRight,
@@ -65,19 +65,11 @@ export function Home() {
     }
   }, [])
 
-  // Featured Products filtered by tab:
-  const filteredProducts = useMemo(() => {
-    return homeProducts.filter((p) => {
-      const tag = String(p.tag || '').trim().toUpperCase()
-      if (activeTab === 'hot') {
-        return tag === 'HOT' || tag === 'BEST SELLER' || tag === 'BESTSELLER'
-      }
-      if (activeTab === 'sale') {
-        return tag === 'SALE' || tag.includes('SALE')
-      }
-      return true
-    })
-  }, [homeProducts, activeTab])
+  const filteredProducts = homeProducts.filter((p) => {
+    if (activeTab === 'hot') return p.tag === 'HOT' || p.tag === 'BEST SELLER'
+    if (activeTab === 'sale') return Boolean(p.oldPrice)
+    return true
+  })
 
   const categoryHighlights = [
     {
@@ -87,20 +79,20 @@ export function Home() {
       image: 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=800&q=80',
     },
     {
-      title: 'Áo Đấu Chính Hãng',
-      tag: 'AUTHENTIC',
+      title: 'Áo Đấu',
+      tag: 'Chính Hãng',
       link: '/shop?category=ao-dau',
       image: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=800&q=80',
     },
     {
       title: 'Bóng Thi Đấu',
-      tag: 'FIFA PRO',
+      tag: 'FIFA Quality',
       link: '/shop?category=bong-thi-dau',
       image: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&w=800&q=80',
     },
     {
-      title: 'Phụ Kiện Sân Cỏ',
-      tag: 'BẢO HỘ',
+      title: 'Phụ Kiện',
+      tag: 'Bảo Vệ Tối Đa',
       link: '/shop?category=phu-kien',
       image: 'https://images.unsplash.com/photo-1461896836934-ffe607ba8211?auto=format&fit=crop&w=800&q=80',
     },
@@ -108,10 +100,10 @@ export function Home() {
 
   return (
     <div className="bg-[#0B0E17] text-white selection:bg-lime-400 selection:text-slate-950">
-      {/* 1. Dynamic Hero Banner Carousel */}
+      {/* 1. Hero Banner Slider */}
       <HeroBanner />
 
-      {/* 2. Brand Trust Strip */}
+      {/* 2. Marquee Ticker */}
       <section className="relative border-y border-white/10 bg-[#131823]/80 py-4 overflow-hidden">
         <div className="flex w-full items-center justify-around gap-8 text-[11px] font-black uppercase tracking-[0.25em] text-emerald-300">
           <div className="flex items-center gap-3">
@@ -134,7 +126,7 @@ export function Home() {
       </section>
 
       {/* 3. Category Visual Highlights */}
-      <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-8 lg:px-8">
         <div className="mb-6">
           <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
             Danh mục tuyển chọn
@@ -171,7 +163,7 @@ export function Home() {
       </section>
 
       {/* 4. Featured Products Grid with Tabs */}
-      <section className="mx-auto max-w-7xl px-5 py-12 lg:px-8">
+      <section className="mx-auto max-w-7xl px-5 py-16 lg:px-8">
         <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4 mb-8">
           <div>
             <span className="text-xs font-bold uppercase tracking-widest text-emerald-400">
@@ -191,11 +183,10 @@ export function Home() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as typeof activeTab)}
-                className={`rounded-xl px-4 py-2 transition cursor-pointer ${
-                  activeTab === tab.id
+                className={`rounded-xl px-4 py-2 transition cursor-pointer ${activeTab === tab.id
                     ? 'bg-lime-400 text-slate-950 shadow-md font-black'
                     : 'text-slate-400 hover:text-white'
-                }`}
+                  }`}
               >
                 {tab.label}
               </button>
@@ -227,7 +218,7 @@ export function Home() {
 
         <div className="relative mx-auto max-w-7xl">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
-            {/* Left Column: Manifesto Content */}
+            {/* Left Column: Manifesto Content (Left Aligned) */}
             <div className="flex flex-col items-start text-left">
               <span className="text-xs font-bold uppercase tracking-[0.2em] text-lime-300">
                 Our Manifesto
@@ -250,8 +241,9 @@ export function Home() {
               </div>
             </div>
 
-            {/* Right Column: 3 Policy Items */}
+            {/* Right Column: 3 Policy Items (Vertical Stack, Transparent Background) */}
             <div className="flex flex-col gap-8 lg:gap-10">
+              {/* Item 1 */}
               <div className="flex items-start gap-4 bg-transparent">
                 <div className="shrink-0 text-lime-400 mt-1">
                   <Truck size={28} />
@@ -264,6 +256,7 @@ export function Home() {
                 </div>
               </div>
 
+              {/* Item 2 */}
               <div className="flex items-start gap-4 bg-transparent">
                 <div className="shrink-0 text-lime-400 mt-1">
                   <RotateCcw size={28} />
@@ -276,6 +269,7 @@ export function Home() {
                 </div>
               </div>
 
+              {/* Item 3 */}
               <div className="flex items-start gap-4 bg-transparent">
                 <div className="shrink-0 text-lime-400 mt-1">
                   <Headphones size={28} />

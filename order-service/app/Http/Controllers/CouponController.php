@@ -212,34 +212,14 @@ class CouponController extends Controller
     public function apply(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'code' => ['required_without:coupon_code', 'nullable', 'string'],
-            'coupon_code' => ['required_without:code', 'nullable', 'string'],
+            'code' => ['required', 'string', 'max:50'],
             'subtotal' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'order_amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'total' => ['sometimes', 'nullable', 'numeric', 'min:0'],
-            'amount' => ['sometimes', 'nullable', 'numeric', 'min:0'],
             'shipping_fee' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ]);
 
-        $rawCode = $validated['code'] ?? $validated['coupon_code'] ?? $request->input('code') ?? $request->input('coupon_code') ?? '';
-        $cleanCode = Str::upper(trim((string) $rawCode));
-
-        $subtotal = (float) (
-            $validated['subtotal']
-            ?? $validated['order_amount']
-            ?? $validated['total']
-            ?? $validated['amount']
-            ?? $request->input('subtotal')
-            ?? $request->input('order_amount')
-            ?? $request->input('total')
-            ?? 0
-        );
-
-        $shippingFee = (float) (
-            $validated['shipping_fee']
-            ?? $request->input('shipping_fee')
-            ?? 30000
-        );
+        $cleanCode = Str::upper(trim($validated['code']));
+        $subtotal = (float) ($validated['subtotal'] ?? 0);
+        $shippingFee = (float) ($validated['shipping_fee'] ?? 30000);
 
         try {
             $result = $this->couponService->validateAndCalculate($cleanCode, null, $subtotal, $shippingFee, false);

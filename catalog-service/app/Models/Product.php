@@ -2,61 +2,50 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+#[Fillable(['category_id', 'brand_id', 'name', 'slug', 'sku', 'description', 'price', 'old_price', 'stock', 'brand', 'tag', 'image_url', 'images', 'colors', 'sizes', 'is_active'])]
 class Product extends Model
 {
-    use HasFactory, SoftDeletes;
+    use SoftDeletes;
 
-    protected $fillable = [
-        'category_id',
-        'brand_id',
-        'name',
-        'slug',
-        'sku',
-        'price',
-        'old_price',
-        'tag',
-        'stock',
-        'image_url',
-        'images',
-        'colors',
-        'sizes',
-        'description',
-        'is_active',
-    ];
+    protected $appends = ['is_deleted'];
 
-    protected $casts = [
-        'price' => 'float',
-        'old_price' => 'float',
-        'stock' => 'integer',
-        'images' => 'array',
-        'colors' => 'array',
-        'sizes' => 'array',
-        'is_active' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'category_id' => 'integer',
+            'brand_id' => 'integer',
+            'price' => 'decimal:2',
+            'old_price' => 'decimal:2',
+            'stock' => 'integer',
+            'images' => 'array',
+            'colors' => 'array',
+            'sizes' => 'array',
+            'is_active' => 'boolean',
+        ];
+    }
+
+    public function getIsDeletedAttribute(): bool
+    {
+        return $this->trashed();
+    }
 
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    public function brand(): BelongsTo
-    {
-        return $this->belongsTo(Brand::class);
-    }
-
-    public function variants(): HasMany
+    public function variants(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
         return $this->hasMany(ProductVariant::class);
     }
 
-    public function productImages(): HasMany
+    public function productImages(): \Illuminate\Database\Eloquent\Relations\HasMany
     {
-        return $this->hasMany(ProductImage::class);
+        return $this->hasMany(ProductImage::class)->orderBy('sort_order');
     }
 }

@@ -15,12 +15,12 @@ const parseCartFromStorage = (key: string): CartItem[] => {
   const stored = localStorage.getItem(key)
   if (!stored) return []
   try {
-    const items = JSON.parse(stored) as (Partial<CartItem> & { image_url?: string; images?: string[] })[]
+    const items = JSON.parse(stored) as Partial<CartItem>[]
     return items.map((item) => {
       const resolvedImg =
         item.image ||
-        item.image_url ||
-        (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : '') ||
+        (item as any).image_url ||
+        (Array.isArray((item as any).images) && (item as any).images.length > 0 ? (item as any).images[0] : '') ||
         ''
       return {
         ...item,
@@ -28,7 +28,7 @@ const parseCartFromStorage = (key: string): CartItem[] => {
         cartItemId:
           item.cartItemId ??
           `${item.id}_${item.selectedSize ?? 'default'}_${item.selectedColor ?? 'default'}`,
-        selected: true, // Mặc định luôn chọn tất cả sản phẩm khi load giỏ hàng
+        selected: true, // Mặc định luôn chọn tất cả sản phẩm khi khởi tạo hoặc tải lại trang (Chuẩn UX E-commerce)
       }
     }) as CartItem[]
   } catch {
@@ -73,8 +73,6 @@ export type CartContextValue = {
   savedCoupons: string[]
   saveCoupon: (code: string) => void
   isCouponSaved: (code: string) => boolean
-  toast: string | null
-  notify: (message: string) => void
   cartDrawerOpen: boolean
   setCartDrawerOpen: (open: boolean) => void
   cartPulse: boolean
@@ -124,12 +122,9 @@ export function CartProvider({ children }: { children: ReactNode }) {
 
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false)
   const [cartPulse, setCartPulse] = useState(false)
-  const [legacyToast, setLegacyToast] = useState<string | null>(null)
 
   useEffect(() => {
-    // Lưu giỏ hàng vào storage mà không lưu cứng trạng thái bỏ chọn checkbox
-    const cartToStore = cart.map((item) => ({ ...item, selected: true }))
-    localStorage.setItem(cartKeyRef.current, JSON.stringify(cartToStore))
+    localStorage.setItem(cartKeyRef.current, JSON.stringify(cart))
   }, [cart])
 
   useEffect(() => {
@@ -168,12 +163,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('crs:user-logout', handleLogout)
     }
   }, [])
-
-  const notify = (message: string) => {
-    setLegacyToast(message)
-    toast(message)
-    window.setTimeout(() => setLegacyToast(null), 2800)
-  }
 
   const addToCart = async (
     product: Product,
@@ -492,8 +481,6 @@ export function CartProvider({ children }: { children: ReactNode }) {
     savedCoupons,
     saveCoupon,
     isCouponSaved,
-    toast: legacyToast,
-    notify,
     cartDrawerOpen,
     setCartDrawerOpen,
     cartPulse,

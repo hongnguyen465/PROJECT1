@@ -80,7 +80,7 @@ export const Dashboard: React.FC = () => {
     Promise.all([
       fetchAdminOrders({ per_page: 100 }).catch(() => []),
       fetchOrderStats().catch(() => ({ total: 0, pending: 0, shipping: 0, delivered: 0, cancelled: 0 })),
-      fetchProducts({ per_page: 100 }).catch(() => []),
+      fetchProducts({ per_page: 100, all: 1 }).catch(() => []),
       fetchUsers({ per_page: 1 }).catch(() => ({ pagination: { total: 0 } }))
     ]).then(([ordersRes, statsRes, prodsRes, usersRes]) => {
       if (!active) return;

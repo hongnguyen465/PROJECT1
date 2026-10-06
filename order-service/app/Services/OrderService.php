@@ -20,6 +20,9 @@ class OrderService
         protected GhnService $ghnService
     ) {}
 
+    // ============================================================================
+    // 1. ORDER CREATION WITH TRANSACTION, STOCK DEDUCTION & MOMO INTEGRATION
+    // ============================================================================
     /**
      * Create an order from items or user's cart.
      *
@@ -187,6 +190,9 @@ class OrderService
         ];
     }
 
+    // ============================================================================
+    // 2. ORDER LISTING & PAGINATION (User & Admin with Filters)
+    // ============================================================================
     /**
      * List orders with filtering, search, and pagination.
      *
@@ -225,6 +231,9 @@ class OrderService
         ];
     }
 
+    // ============================================================================
+    // 3. AGGREGATE ORDER STATISTICS (Single Query Optimization)
+    // ============================================================================
     /**
      * Get order statistics for Admin dashboard.
      *
@@ -232,39 +241,30 @@ class OrderService
      */
     public function getOrderStats(): array
     {
-        $pendingCount = Order::where(function ($q) {
-            $q->where('order_status', 'pending')->orWhere('status', 'pending');
-        })->count();
-
-        $processingCount = Order::where(function ($q) {
-            $q->where('order_status', 'processing')->orWhere('status', 'processing');
-        })->count();
-
-        $revenue = Order::where(function ($q) {
-            $q->whereIn('order_status', ['delivered', 'paid'])
-              ->orWhereIn('status', ['delivered', 'paid']);
-        })->where(function ($q) {
-            $q->whereNotIn('order_status', ['cancelled'])
-              ->whereNotIn('status', ['cancelled']);
-        })->sum('total_amount');
+        $stats = Order::selectRaw("
+            COUNT(*) as total,
+            COALESCE(SUM(CASE WHEN (order_status IN ('delivered', 'paid') OR status IN ('delivered', 'paid')) AND order_status != 'cancelled' AND status != 'cancelled' THEN total_amount ELSE 0 END), 0) as revenue,
+            COALESCE(SUM(CASE WHEN order_status = 'pending' OR status = 'pending' THEN 1 ELSE 0 END), 0) as pending,
+            COALESCE(SUM(CASE WHEN order_status = 'processing' OR status = 'processing' THEN 1 ELSE 0 END), 0) as processing,
+            COALESCE(SUM(CASE WHEN order_status = 'shipping' OR status = 'shipping' THEN 1 ELSE 0 END), 0) as shipping,
+            COALESCE(SUM(CASE WHEN order_status IN ('delivered', 'paid') OR status IN ('delivered', 'paid') THEN 1 ELSE 0 END), 0) as delivered,
+            COALESCE(SUM(CASE WHEN order_status = 'cancelled' OR status = 'cancelled' THEN 1 ELSE 0 END), 0) as cancelled
+        ")->first();
 
         return [
-            'total' => Order::count(),
-            'revenue' => (float) $revenue,
-            'pending' => $pendingCount,
-            'processing' => $processingCount,
-            'shipping' => Order::where(function ($q) {
-                $q->where('order_status', 'shipping')->orWhere('status', 'shipping');
-            })->count(),
-            'delivered' => Order::where(function ($q) {
-                $q->whereIn('order_status', ['delivered', 'paid'])->orWhereIn('status', ['delivered', 'paid']);
-            })->count(),
-            'cancelled' => Order::where(function ($q) {
-                $q->where('order_status', 'cancelled')->orWhere('status', 'cancelled');
-            })->count(),
+            'total' => (int) ($stats->total ?? 0),
+            'revenue' => (float) ($stats->revenue ?? 0),
+            'pending' => (int) ($stats->pending ?? 0),
+            'processing' => (int) ($stats->processing ?? 0),
+            'shipping' => (int) ($stats->shipping ?? 0),
+            'delivered' => (int) ($stats->delivered ?? 0),
+            'cancelled' => (int) ($stats->cancelled ?? 0),
         ];
     }
 
+    // ============================================================================
+    // 4. ORDER STATUS & PAYMENT UPDATE (With Inventory Stock Restoration)
+    // ============================================================================
     /**
      * Update order status or payment status.
      *
@@ -280,6 +280,15 @@ class OrderService
                 $currentStatus = $order->order_status ?: $order->status;
                 if (in_array($currentStatus, ['processing', 'shipping', 'delivered']) || !empty($order->ghn_code)) {
                     throw new Exception('Không thể hủy đơn hàng khi đơn đã ở trạng thái Chờ lấy hàng hoặc Đang giao hàng.', 422);
+                }
+
+                if ($currentStatus !== 'cancelled') {
+                    $order->loadMissing('items');
+                    $itemsToRestore = $order->items->map(fn ($item) => [
+                        'product_id' => $item->product_id,
+                        'quantity' => $item->quantity,
+                    ])->toArray();
+                    $this->catalogService->restoreStock($itemsToRestore);
                 }
             }
             $order->order_status = $newStatus;
@@ -300,6 +309,9 @@ class OrderService
         return $order->fresh()->load('items');
     }
 
+    // ============================================================================
+    // 5. GHN SHIPPING ORDER CREATION & TRACKING PERSISTENCE
+    // ============================================================================
     /**
      * Create GHN shipping order and persist ghn_code.
      *

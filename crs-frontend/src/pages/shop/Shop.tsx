@@ -14,6 +14,7 @@ import { ProductCard } from '../../components/ProductCard'
 import { ProductSkeleton } from '../../components/Skeleton'
 import { fetchProducts, fetchCategories, fetchBrands } from '../../services/catalog'
 import { fetchReviewSummaries } from '../../services/reviews'
+import { fetchSalesSummary } from '../../services/orders'
 import type { Product } from '../../types'
 
 function matchCategoryFromQuery(value: string | null, dynamicCats: string[]): string {
@@ -79,7 +80,8 @@ export function Shop() {
       fetchBrands().catch(() => []),
       fetchProducts({ per_page: 100 }).catch(() => []),
       fetchReviewSummaries().catch(() => ({} as Record<number, any>)),
-    ]).then(([cats, brands, prods, revMapRes]) => {
+      fetchSalesSummary().catch(() => ({} as Record<number, number>)),
+    ]).then(([cats, brands, prods, revMapRes, salesMapRes]) => {
       if (!active) return
 
       if (Array.isArray(cats) && cats.length > 0) {
@@ -90,31 +92,36 @@ export function Shop() {
       }
 
       const revMap = revMapRes || {}
+      const salesMap = salesMapRes || {}
       const pList: any[] = Array.isArray(prods) ? prods : (prods?.data ?? [])
       if (pList.length > 0) {
         setCatalog(
-          pList.map((item: any) => {
-            const rInfo = revMap[item.id] || revMap[Number(item.id)]
-            const dynamicRating = rInfo?.avg_rating ? Number(rInfo.avg_rating) : 5.0
-            const dynamicCount = rInfo?.review_count ? Number(rInfo.review_count) : 0
+          pList
+            .filter((item: any) => item.is_active !== false && item.isActive !== false && item.status !== 'inactive')
+            .map((item: any) => {
+              const rInfo = revMap[item.id] || revMap[Number(item.id)]
+              const dynamicRating = rInfo?.avg_rating ? Number(rInfo.avg_rating) : 5.0
+              const dynamicCount = rInfo?.review_count ? Number(rInfo.review_count) : 0
+              const dynamicSold = Number(salesMap[item.id] ?? salesMap[Number(item.id)] ?? item.soldCount ?? item.sold_count ?? 0)
 
-            return {
-              ...item,
-              id: Number(item.id),
-              price: Number(item.price ?? 0),
-              oldPrice: item.oldPrice != null ? Number(item.oldPrice) : (item.old_price != null ? Number(item.old_price) : undefined),
-              tag: item.tag || undefined,
-              rating: dynamicRating,
-              reviewsCount: dynamicCount,
-              category: typeof item.category === 'object' && item.category !== null ? item.category.name : (item.category ?? 'Khác'),
-              brand: typeof item.brand === 'object' && item.brand !== null ? item.brand.name : (item.brand ?? 'STRIKER'),
-              image: item.image || item.image_url || (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : '') || '',
-              images: Array.isArray(item.images) && item.images.length > 0 ? item.images : ((item.image || item.image_url) ? [item.image || item.image_url] : []),
-              colors: Array.isArray(item.colors) && item.colors.length > 0 ? item.colors : ['Black'],
-              sizes: Array.isArray(item.sizes) && item.sizes.length > 0 ? item.sizes : ['40', '41'],
-              description: item.description ?? 'Thiết bị bóng đá chính hãng.',
-            }
-          })
+              return {
+                ...item,
+                id: Number(item.id),
+                price: Number(item.price ?? 0),
+                oldPrice: item.oldPrice != null ? Number(item.oldPrice) : (item.old_price != null ? Number(item.old_price) : undefined),
+                tag: item.tag || undefined,
+                rating: dynamicRating,
+                reviewsCount: dynamicCount,
+                soldCount: dynamicSold,
+                category: typeof item.category === 'object' && item.category !== null ? item.category.name : (item.category ?? 'Khác'),
+                brand: typeof item.brand === 'object' && item.brand !== null ? item.brand.name : (item.brand ?? 'STRIKER'),
+                image: item.image || item.image_url || (Array.isArray(item.images) && item.images.length > 0 ? item.images[0] : '') || '',
+                images: Array.isArray(item.images) && item.images.length > 0 ? item.images : ((item.image || item.image_url) ? [item.image || item.image_url] : []),
+                colors: Array.isArray(item.colors) && item.colors.length > 0 ? item.colors : ['Black'],
+                sizes: Array.isArray(item.sizes) && item.sizes.length > 0 ? item.sizes : ['40', '41'],
+                description: item.description ?? 'Thiết bị bóng đá chính hãng.',
+              }
+            })
         )
       }
       setLoading(false)

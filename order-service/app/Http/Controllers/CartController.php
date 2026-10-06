@@ -37,17 +37,19 @@ class CartController extends Controller
         $validated = $request->validate([
             'user_id' => ['required', 'integer', 'min:1'],
             'product_id' => ['required', 'integer', 'min:1'],
+            'variant_id' => ['sometimes', 'nullable', 'integer'],
             'quantity' => ['sometimes', 'integer', 'min:1'],
-            'price' => ['required', 'numeric', 'min:0'],
+            'price' => ['sometimes', 'nullable', 'numeric', 'min:0'],
         ]);
         $cart = Cart::firstOrCreate(['user_id' => $validated['user_id']]);
+        $variantId = !empty($validated['variant_id']) ? (int) $validated['variant_id'] : (int) $validated['product_id'];
         $item = CartItem::firstOrNew([
             'cart_id' => $cart->id,
-            'product_id' => $validated['product_id'],
+            'variant_id' => $variantId,
         ]);
+        $item->product_id = (int) $validated['product_id'];
         $item->quantity = ($item->exists ? $item->quantity : 0) + ($validated['quantity'] ?? 1);
-        $item->price = $validated['price'];
-        $item->variant_id = $validated['product_id'];
+        $item->price = (float) ($validated['price'] ?? 0);
         $item->save();
 
         return response()->json([

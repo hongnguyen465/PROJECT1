@@ -2,12 +2,10 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'order_number', 'total_amount', 'status', 'shipping_address', 'to_district_id', 'to_ward_code', 'phone', 'order_code', 'coupon_id', 'shipping_name', 'shipping_phone', 'subtotal', 'shipping_fee', 'discount_amount', 'order_status', 'payment_status', 'payment_method', 'ghn_code', 'note'])]
 class Order extends Model
 {
     protected $fillable = [

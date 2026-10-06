@@ -17,15 +17,24 @@ class Message extends Model
         'is_read',
     ];
 
-    protected $casts = [
-        'is_read' => 'boolean',
-    ];
+    protected function casts(): array
+    {
+        return [
+            'is_read' => 'boolean',
+        ];
+    }
 
+    /**
+     * Người gửi tin nhắn
+     */
     public function sender(): BelongsTo
     {
         return $this->belongsTo(User::class, 'sender_id');
     }
 
+    /**
+     * Người nhận tin nhắn
+     */
     public function receiver(): BelongsTo
     {
         return $this->belongsTo(User::class, 'receiver_id');

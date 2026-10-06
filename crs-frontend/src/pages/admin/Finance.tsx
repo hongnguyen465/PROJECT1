@@ -106,7 +106,7 @@ export const Finance: React.FC = () => {
       const rawPay = (order.payment_status || '').toLowerCase();
       const rawOrd = (order.order_status || order.status || '').toLowerCase();
 
-      let ordStatus: string;
+      let ordStatus = 'pending';
       let isPaid = false;
       let isRefundPending = false;
       let isRefunded = false;
@@ -562,7 +562,7 @@ export const Finance: React.FC = () => {
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-lime-400 text-slate-950 uppercase tracking-wider">
-                    DOANH THU THUẦN (NET REVENUE)
+                    DOANH THU
                   </span>
                   <span className="text-[11px] text-slate-400">= Doanh thu gộp – Tiền hoàn trả</span>
                 </div>
@@ -604,7 +604,7 @@ export const Finance: React.FC = () => {
             {/* Card 1: Tiền hàng đang giao (GHN) */}
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-sky-950/30 via-slate-900 to-slate-900 border border-sky-500/30 shadow-md">
               <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-sky-400 mb-1.5">
-                <Truck className="w-4 h-4" /> Tiền shipper đang giao (GHN)
+                <Truck className="w-4 h-4" /> Tiền đơn đang giao
               </div>
               <div className="text-xl sm:text-2xl font-black text-sky-400 tracking-tight">
                 {summaryStats.shippingRevenue.toLocaleString('vi-VN')} đ

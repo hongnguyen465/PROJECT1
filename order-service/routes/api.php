@@ -7,45 +7,41 @@ use App\Http\Controllers\ReviewController;
 use App\Http\Controllers\ShippingController;
 use Illuminate\Support\Facades\Route;
 
-// Orders routes
-Route::prefix('orders')->group(function () {
-    Route::get('/', [OrderController::class, 'index']);
-    Route::post('/', [OrderController::class, 'store']);
-    Route::get('/{id}', [OrderController::class, 'show']);
-    Route::patch('/{id}/status', [OrderController::class, 'updateStatus']);
-    Route::post('/{id}/ghn-ship', [OrderController::class, 'createGhnShipment']);
-});
+// Cart Routes
+Route::get('/cart', [CartController::class, 'index']);
+Route::post('/cart/items', [CartController::class, 'store']);
+Route::patch('/cart/items/{cartItem}', [CartController::class, 'update']);
+Route::delete('/cart/items/{cartItem}', [CartController::class, 'destroy']);
 
-// Cart routes
-Route::prefix('cart')->group(function () {
-    Route::get('/', [CartController::class, 'index']);
-    Route::post('/items', [CartController::class, 'addItem']);
-    Route::patch('/items/{id}', [CartController::class, 'updateItem']);
-    Route::delete('/items/{id}', [CartController::class, 'removeItem']);
-    Route::delete('/clear', [CartController::class, 'clear']);
-});
+// Order Routes
+Route::get('/orders', [OrderController::class, 'index']);
+Route::get('/orders/stats', [OrderController::class, 'stats']);
+Route::get('/orders/sales-summary', [OrderController::class, 'salesSummary']);
+Route::post('/orders', [OrderController::class, 'store']);
+Route::get('/orders/{order}', [OrderController::class, 'show']);
+Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
+Route::post('/orders/{order}/mark-paid', [OrderController::class, 'markPaid']);
+Route::post('/orders/{order}/ship-ghn', [OrderController::class, 'createGhnShipping']);
 
-// Coupon routes
-Route::prefix('coupons')->group(function () {
-    Route::get('/', [CouponController::class, 'index']);
-    Route::post('/', [CouponController::class, 'store']);
-    Route::patch('/{id}', [CouponController::class, 'update']);
-    Route::delete('/{id}', [CouponController::class, 'destroy']);
-    Route::post('/apply', [CouponController::class, 'apply']);
-});
+// Coupon / Voucher Routes
+Route::get('/coupons', [CouponController::class, 'index']);
+Route::post('/coupons', [CouponController::class, 'store']);
+Route::get('/coupons/{coupon}', [CouponController::class, 'show']);
+Route::put('/coupons/{coupon}', [CouponController::class, 'update']);
+Route::patch('/coupons/{coupon}', [CouponController::class, 'update']);
+Route::delete('/coupons/{coupon}', [CouponController::class, 'destroy']);
+Route::post('/coupons/apply', [CouponController::class, 'apply']);
 
-// Shipping routes
-Route::prefix('shipping')->group(function () {
-    Route::get('/provinces', [ShippingController::class, 'getProvinces']);
-    Route::get('/districts', [ShippingController::class, 'getDistricts']);
-    Route::get('/wards', [ShippingController::class, 'getWards']);
-    Route::post('/fee', [ShippingController::class, 'calculateFee']);
-});
+// Review Routes
+Route::get('/reviews/summary', [ReviewController::class, 'summary']);
+Route::get('/reviews', [ReviewController::class, 'index']);           // ?product_id=X
+Route::post('/reviews', [ReviewController::class, 'store']);
+Route::get('/reviews/check', [ReviewController::class, 'check']);     // ?order_id=X&product_id=Y&user_id=Z
 
-// Review routes
-Route::prefix('reviews')->group(function () {
-    Route::get('/', [ReviewController::class, 'index']);
-    Route::get('/summary', [ReviewController::class, 'summary']);
-    Route::post('/', [ReviewController::class, 'store']);
-    Route::get('/check-reviewed', [ReviewController::class, 'checkReviewed']);
-});
+// GHN Shipping Routes
+Route::get('/shipping/provinces', [ShippingController::class, 'provinces']);
+Route::get('/shipping/districts', [ShippingController::class, 'districts']);
+Route::get('/shipping/wards', [ShippingController::class, 'wards']);
+Route::post('/shipping/fee', [ShippingController::class, 'calculateFee']);
+Route::post('/shipping/ghn/webhook', [ShippingController::class, 'webhook']);
+Route::post('/ghn/webhook', [ShippingController::class, 'webhook']);

@@ -5,7 +5,6 @@ import { toast } from 'sonner'
 import { fetchCoupons } from '../services/coupons'
 import { useApp } from '../context/AppContext'
 import type { Coupon } from '../types'
-import { formatVND } from '../utils'
 
 interface CouponModalProps {
   isOpen: boolean
@@ -55,13 +54,11 @@ export function CouponModal({ isOpen, onClose, onSelectCoupon }: CouponModalProp
     const stored = localStorage.getItem('crs_admin_vouchers')
     if (stored) {
       try {
-        const parsed: unknown = JSON.parse(stored)
+        const parsed: any[] = JSON.parse(stored)
         if (Array.isArray(parsed) && parsed.length > 0) {
           return parsed.map(normalizeCoupon).filter((c) => c.isActive !== false)
         }
-      } catch {
-        return []
-      }
+      } catch {}
     }
     return []
   }, [apiCoupons])
@@ -131,14 +128,14 @@ export function CouponModal({ isOpen, onClose, onSelectCoupon }: CouponModalProp
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 sm:p-6">
           {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-[#0B0E17]/85 backdrop-blur-md"
+            className="fixed inset-0 bg-[#0B0E17]/80 backdrop-blur-md"
           />
 
           {/* Modal Box */}
@@ -147,7 +144,7 @@ export function CouponModal({ isOpen, onClose, onSelectCoupon }: CouponModalProp
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.94, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="relative flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#131823] text-white shadow-2xl"
+            className="relative z-10 flex max-h-[88vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl border border-white/10 bg-[#131823] text-white shadow-2xl"
           >
             {/* Modal Header */}
             <div className="flex items-center justify-between border-b border-white/10 px-6 py-5">
@@ -276,7 +273,7 @@ export function CouponModal({ isOpen, onClose, onSelectCoupon }: CouponModalProp
 
                         {isAvailable && !isEligible && cartSubtotal > 0 && (
                           <span className="font-semibold text-amber-300">
-                            (Mua thêm {formatVND(missingAmount)} để dùng)
+                            (Mua thêm {(Number(missingAmount ?? 0)).toLocaleString('vi-VN')}đ để dùng)
                           </span>
                         )}
                         {isEligible && cartSubtotal > 0 && (

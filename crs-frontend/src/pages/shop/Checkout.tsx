@@ -22,9 +22,11 @@ import {
   resolveLocationToGhnIds,
 } from '../../services/shipping'
 import type { Address, Order } from '../../types'
-import { formatVND } from '../../utils'
 
 export function Checkout() {
+  // ============================================================================
+  // 1. STATE & CHECKOUT INITIALIZATION
+  // ============================================================================
   const {
     cart,
     cartSubtotal,
@@ -58,7 +60,7 @@ export function Checkout() {
     }
   }, [user, itemsToCheckout.length, navigate, setCartDrawerOpen])
 
-  // Address State
+  // Address State & Auto-sync with Address Book
   const [selectedAddress, setSelectedAddress] = useState<Address | null>(
     user?.addresses?.find((a) => a.isDefault) || user?.addresses?.[0] || null
   )
@@ -74,9 +76,9 @@ export function Checkout() {
     }
   }, [user?.addresses, selectedAddress])
 
-  // Form State - Chỉ hỗ trợ 'momo' và 'cod'
+  // Form State - Hỗ trợ 'momo' và 'cod'
   const [note, setNote] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'cod'>('cod')
+  const [paymentMethod, setPaymentMethod] = useState<'momo' | 'cod'>('momo')
 
   // Shipping & Modal State
   const [ghnShippingFee, setGhnShippingFee] = useState<number | null>(null)
@@ -84,10 +86,12 @@ export function Checkout() {
   const [couponModalOpen, setCouponModalOpen] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
-  // Tính phí ship GHN khớp chuẩn bảng giá cước vận chuyển của GHN
+  // ============================================================================
+  // 2. GHN REAL-TIME SHIPPING FEE CALCULATION
+  // ============================================================================
   const calculateFeeForAddress = useCallback(
     async (addr: Address | null, _subtotal: number) => {
-      if (!addr || !addr.province?.trim() || !addr.district?.trim() || !addr.ward?.trim()) {
+      if (!addr) {
         setGhnShippingFee(null)
         return
       }
@@ -98,7 +102,7 @@ export function Checkout() {
         const locationIds = await resolveLocationToGhnIds(addr)
 
         if (!locationIds || !locationIds.districtId || !locationIds.wardCode) {
-          setGhnShippingFee(null)
+          setGhnShippingFee(30000)
           return
         }
 
@@ -108,17 +112,16 @@ export function Checkout() {
           to_district_id: locationIds.districtId,
           to_ward_code: locationIds.wardCode,
           weight: totalWeight,
-          insurance_value: 0, // Cước vận chuyển chuẩn GHN, không cộng dồn phụ phí bảo hiểm
+          insurance_value: 0,
         })
 
         if (feeData && typeof feeData.total === 'number') {
           setGhnShippingFee(feeData.service_fee ?? feeData.total)
         } else {
-          setGhnShippingFee(null)
+          setGhnShippingFee(30000)
         }
-      } catch (err: any) {
-        console.error('❌ Lỗi API tính phí GHN:', err?.response?.data || err?.message || err)
-        setGhnShippingFee(null)
+      } catch {
+        setGhnShippingFee(30000)
       } finally {
         setCalculatingFee(false)
       }
@@ -130,7 +133,9 @@ export function Checkout() {
     calculateFeeForAddress(selectedAddress, cartSubtotal)
   }, [selectedAddress, cartSubtotal, calculateFeeForAddress])
 
-  // Tính toán giảm giá & Tổng tiền
+  // ============================================================================
+  // 3. COUPON VOUCHER & FINAL TOTAL COMPUTATION
+  // ============================================================================
   const rawShippingFee = ghnShippingFee ?? 0
 
   const { discountAmount, shippingDiscount, effectiveShippingFee } = useMemo(() => {
@@ -142,6 +147,9 @@ export function Checkout() {
         shipDiscount = Math.min(rawShippingFee, appliedCoupon.discountValue)
       } else if (appliedCoupon.discountType === 'fixed') {
         discount = Math.min(cartSubtotal, appliedCoupon.discountValue)
+      } else if (appliedCoupon.discountType === 'percent') {
+        const rawDiscount = (cartSubtotal * appliedCoupon.discountValue) / 100
+        discount = appliedCoupon.maxDiscount ? Math.min(rawDiscount, appliedCoupon.maxDiscount) : rawDiscount
       }
     }
 
@@ -154,7 +162,9 @@ export function Checkout() {
 
   const finalCalculatedTotal = Math.max(0, cartSubtotal + effectiveShippingFee - discountAmount)
 
-  // Xử lý submit đơn hàng
+  // ============================================================================
+  // 4. ORDER SUBMISSION & MOMO PAYMENT FLOW
+  // ============================================================================
   const handleSubmitOrder = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!selectedAddress) {
@@ -172,13 +182,13 @@ export function Checkout() {
       selectedAddress.province,
     ].filter(Boolean).join(', ')
 
-    const orderId = `STR-${Date.now().toString().slice(-6)}`
+    let realOrderCode = `STR-${Date.now().toString().slice(-6)}`
     const today = new Date()
     const dateString = `${today.getDate().toString().padStart(2, '0')}/${(today.getMonth() + 1).toString().padStart(2, '0')}/${today.getFullYear()}`
     const isMoMo = paymentMethod === 'momo'
 
     const newOrder: Order = {
-      id: orderId,
+      id: realOrderCode,
       date: dateString,
       status: 'pending',
       paymentStatus: 'unpaid',
@@ -270,32 +280,34 @@ export function Checkout() {
           })),
         })
 
+        const createdOrder = createResult?.order
+        if (createdOrder) {
+          realOrderCode = createdOrder.order_code || createdOrder.order_number || String(createdOrder.id || realOrderCode)
+        }
+
         // Lấy payUrl từ response createOrder hoặc fetch riêng từ start-momo
         if (isMoMo) {
           if (createResult?.payUrl) {
             momoRedirectUrl = createResult.payUrl
           } else {
-            const createdOrderId = createResult?.order?.id || createResult?.order?.order_id
+            const createdOrderId = createdOrder?.id || createdOrder?.order_id
+            const orderTotal = createdOrder?.total_amount || finalCalculatedTotal
+            const orderCode = createdOrder?.order_code || createdOrder?.order_number || realOrderCode
             if (createdOrderId) {
-              momoRedirectUrl = await getMomoPayUrl(createdOrderId)
+              momoRedirectUrl = await getMomoPayUrl(createdOrderId, orderTotal, orderCode)
             }
           }
         }
 
         await refreshOrders()
       } catch (err: any) {
-        console.log('Lỗi validation:', err?.response?.data?.errors || err?.response?.data)
-        console.error('Tạo đơn hàng lỗi chi tiết:', {
-          status: err?.response?.status,
-          data: err?.response?.data,
-          message: err?.message,
-        })
         toast.error(err?.response?.data?.message || 'Không thể khởi tạo đơn hàng trên hệ thống. Vui lòng thử lại!')
         setSubmitting(false)
         return
       }
     }
 
+    newOrder.id = realOrderCode
 
     // Xóa ngay các sản phẩm đã đặt mua khỏi giỏ hàng
     removePurchasedItems(itemsToCheckout)
@@ -309,22 +321,24 @@ export function Checkout() {
         return
       } else {
         toast.success('🎉 Đặt hàng thành công!', {
-          description: `Đơn hàng MoMo #${orderId} đã được tạo. Vui lòng hoàn tất thanh toán trong Lịch sử đơn hàng.`,
+          description: `Đơn hàng MoMo #${realOrderCode} đã được tạo. Vui lòng hoàn tất thanh toán trong Lịch sử đơn hàng.`,
           duration: 5000,
         })
         navigate('/orders')
       }
     } else {
       toast.success('🎉 Đặt hàng thành công!', {
-        description: `Mã đơn hàng COD của bạn là ${orderId}. Phí giao hàng GHN: ${effectiveShippingFee.toLocaleString('vi-VN')}đ`,
+        description: `Mã đơn hàng COD của bạn là ${realOrderCode}. Phí giao hàng GHN: ${effectiveShippingFee.toLocaleString('vi-VN')}đ`,
         duration: 5000,
       })
       navigate('/orders')
     }
   }
 
-  if (!user) return null
-  if (itemsToCheckout.length === 0) return null
+  // ============================================================================
+  // 5. RENDER: CHECKOUT FORM & UI
+  // ============================================================================
+  if (!user || itemsToCheckout.length === 0) return null
 
   return (
     <section className="min-h-screen bg-[#0B0E17] px-5 py-10 text-white lg:px-8">
@@ -370,10 +384,20 @@ export function Checkout() {
                   <div>
                     <h2 className="text-lg font-black text-white">Địa chỉ nhận hàng</h2>
                     <p className="text-xs text-slate-400">
-                      Thông tin người nhận và tính phí vận chuyển GHN Express
+                      Sổ địa chỉ người nhận và tính phí vận chuyển GHN Express
                     </p>
                   </div>
                 </div>
+
+                {user?.addresses && user.addresses.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setAddressModalOpen(true)}
+                    className="text-xs font-bold text-lime-300 hover:underline cursor-pointer"
+                  >
+                    Sổ địa chỉ ({user.addresses.length}) →
+                  </button>
+                )}
               </div>
 
               <CheckoutAddressCard
@@ -491,24 +515,24 @@ export function Checkout() {
               <div className="grid gap-3 sm:grid-cols-2">
                 {[
                   {
-                    id: 'cod' as const,
-                    title: 'Thanh toán khi nhận hàng (COD)',
-                    desc: 'Kiểm tra hàng rồi thanh toán tiền mặt trực tiếp cho shipper GHN',
-                    badge: 'Mặc định · Tiền mặt',
-                    badgeColor: 'bg-lime-400/20 text-lime-300 border-lime-400/30',
-                    iconBg: 'bg-lime-400 text-slate-950',
-                    icon: Wallet,
-                  },
-                  {
                     id: 'momo' as const,
                     title: 'Thanh toán qua Ví MoMo / Thẻ ATM',
                     desc: 'Cổng thanh toán MoMo & Thẻ ATM nội địa (NAPAS) - không yêu cầu mã CVC',
-                    badge: 'Ví điện tử MoMo',
+                    badge: 'Khuyên dùng',
                     badgeColor: 'bg-pink-500/20 text-pink-300 border-pink-500/30',
                     iconBg: 'bg-gradient-to-br from-[#A50064] to-[#D82D8B] text-white',
                     customIcon: (
                       <span className="font-black text-sm tracking-tighter">MoMo</span>
                     ),
+                  },
+                  {
+                    id: 'cod' as const,
+                    title: 'Thanh toán khi nhận hàng (COD)',
+                    desc: 'Kiểm tra hàng rồi thanh toán tiền mặt trực tiếp cho shipper GHN',
+                    badge: 'Tiền mặt',
+                    badgeColor: 'bg-lime-400/20 text-lime-300 border-lime-400/30',
+                    iconBg: 'bg-lime-400 text-slate-950',
+                    icon: Wallet,
                   },
                 ].map((item) => {
                   const isSelected = paymentMethod === item.id
@@ -576,10 +600,10 @@ export function Checkout() {
                       item.image?.startsWith('http') || item.image?.startsWith('data:')
                         ? item.image
                         : item.image?.startsWith('/storage/')
-                        ? `http://localhost:8000${item.image}`
-                        : item.image
-                        ? `http://localhost:8000/storage/${item.image}`
-                        : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=300&q=80'
+                          ? item.image
+                          : item.image
+                            ? `/storage/${item.image}`
+                            : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=300&q=80'
                     }
                     alt={item.name}
                     className="h-14 w-14 shrink-0 rounded-xl object-cover border border-white/10 bg-slate-900"
@@ -595,7 +619,7 @@ export function Checkout() {
                     </p>
                   </div>
                   <span className="font-mono text-xs font-black text-lime-300 shrink-0">
-                    {formatVND(item.price * item.quantity)}
+                    {(item.price * item.quantity).toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               ))}
@@ -646,7 +670,7 @@ export function Checkout() {
               <div className="flex justify-between text-slate-400">
                 <span>Tạm tính</span>
                 <span className="font-mono text-white font-bold">
-                  {formatVND(cartSubtotal)}
+                  {cartSubtotal.toLocaleString('vi-VN')}đ
                 </span>
               </div>
 
@@ -654,7 +678,7 @@ export function Checkout() {
                 <div className="flex justify-between font-semibold text-emerald-400">
                   <span>Giảm giá Voucher ({appliedCoupon?.code})</span>
                   <span className="font-mono">
-                    -{formatVND(discountAmount)}
+                    -{discountAmount.toLocaleString('vi-VN')}đ
                   </span>
                 </div>
               )}
@@ -675,7 +699,7 @@ export function Checkout() {
                     <span className="text-lime-300 font-bold">Miễn phí (Freeship)</span>
                   ) : (
                     <span className="text-white">
-                      {formatVND(effectiveShippingFee)}
+                      {effectiveShippingFee.toLocaleString('vi-VN')}đ
                     </span>
                   )}
                 </span>
@@ -684,7 +708,7 @@ export function Checkout() {
               <div className="flex justify-between border-t border-white/10 pt-3 text-base">
                 <span className="font-black text-white">Tổng thanh toán</span>
                 <b className="font-mono text-xl font-black text-lime-300">
-                  {formatVND(finalCalculatedTotal)}
+                  {finalCalculatedTotal.toLocaleString('vi-VN')}đ
                 </b>
               </div>
             </div>

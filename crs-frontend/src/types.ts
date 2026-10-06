@@ -1,4 +1,4 @@
-export type Role = 'user' | 'admin' | 'customer'
+export type Role = 'user' | 'admin'
 
 export type ProductVariant = {
   id?: number
@@ -43,6 +43,8 @@ export type Product = {
   tag?: string
   rating?: number
   reviewsCount?: number
+  soldCount?: number
+  sold_count?: number
   stock: number
   description: string
   colors: string[]

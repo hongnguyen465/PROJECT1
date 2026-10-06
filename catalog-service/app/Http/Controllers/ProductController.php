@@ -2,65 +2,64 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\UpsertProductRequest;
 use App\Models\Product;
+use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ProductController extends Controller
 {
+    /**
+     * List products with pagination, category filtering, text search, and soft-delete exclusion.
+     *
+     * @group Product Management
+     */
     public function index(Request $request): JsonResponse
     {
-        $search = $request->input('search');
-        $category = $request->input('category');
-        $brand = $request->input('brand');
-        $tag = $request->input('tag');
-        $sort = $request->input('sort', 'latest');
-        $perPage = (int) $request->input('per_page', 50);
+        $validated = $request->validate([
+            'category_id' => ['nullable', 'integer', 'exists:categories,id'],
+            'brand' => ['nullable', 'string', 'max:255'],
+            'search' => ['nullable', 'string', 'max:255'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'is_active' => ['nullable'],
+            'all' => ['nullable'],
+            'admin' => ['nullable'],
+            'status' => ['nullable', 'string'],
+        ]);
 
-        $query = Product::with(['category', 'brand', 'variants', 'productImages'])
-            ->when($search, function ($q, $s) {
-                $q->where(function ($sub) use ($s) {
-                    $sub->where('name', 'like', "%{$s}%")
-                        ->orWhere('sku', 'like', "%{$s}%")
-                        ->orWhere('description', 'like', "%{$s}%");
+        $query = Product::with(['category', 'variants'])
+            ->when($validated['category_id'] ?? null, fn ($query, $categoryId) => $query->where('category_id', $categoryId))
+            ->when($validated['brand'] ?? null, fn ($query, $brand) => $query->where('brand', $brand))
+            ->when($validated['search'] ?? null, function ($query, string $search): void {
+                $query->where(function ($query) use ($search): void {
+                    $query->where('name', 'like', "%{$search}%")
+                        ->orWhere('brand', 'like', "%{$search}%")
+                        ->orWhere('sku', 'like', "%{$search}%");
                 });
-            })
-            ->when($category, function ($q, $c) {
-                if (is_numeric($c)) {
-                    $q->where('category_id', $c);
-                } else {
-                    $q->whereHas('category', fn($sub) => $sub->where('slug', $c));
-                }
-            })
-            ->when($brand, function ($q, $b) {
-                if (is_numeric($b)) {
-                    $q->where('brand_id', $b);
-                } else {
-                    $q->whereHas('brand', fn($sub) => $sub->where('slug', $b));
-                }
-            })
-            ->when($tag, fn($q, $t) => $q->where('tag', $t));
+            });
 
-        switch ($sort) {
-            case 'price_asc':
-                $query->orderBy('price', 'asc');
-                break;
-            case 'price_desc':
-                $query->orderBy('price', 'desc');
-                break;
-            case 'name_asc':
-                $query->orderBy('name', 'asc');
-                break;
-            default:
-                $query->latest();
-                break;
+        // Filter active products by default for shoppers; allow all if all/admin is requested
+        $includeAll = $request->boolean('all') || $request->boolean('admin') || ($request->input('status') === 'all') || ($request->input('is_active') === 'all');
+        if (!$includeAll) {
+            if ($request->has('is_active')) {
+                $query->where('is_active', $request->boolean('is_active'));
+            } elseif ($request->has('status')) {
+                $query->where('is_active', $request->input('status') === 'active');
+            } else {
+                $query->where('is_active', true);
+            }
         }
 
-        $products = $query->paginate($perPage);
+        $products = $query->latest()
+            ->paginate($validated['per_page'] ?? 15)
+            ->withQueryString();
 
         return response()->json([
             'success' => true,
+            'message' => 'Lấy danh sách sản phẩm thành công.',
             'data' => $products->items(),
             'pagination' => [
                 'current_page' => $products->currentPage(),
@@ -68,124 +67,337 @@ class ProductController extends Controller
                 'total' => $products->total(),
                 'last_page' => $products->lastPage(),
             ],
+            'errors' => null,
         ]);
     }
 
-    public function show($id): JsonResponse
+    /**
+     * Create a new product.
+     *
+     * @group Product Management
+     */
+    public function store(UpsertProductRequest $request): JsonResponse
     {
-        $product = Product::with(['category', 'brand', 'variants', 'productImages'])->find($id);
-        if (!$product) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy sản phẩm'], 404);
-        }
+        $validated = $request->validated();
+        $validated['name'] = trim($validated['name']);
+        $validated['slug'] = !empty($validated['slug']) ? Str::slug($validated['slug']) : Str::slug($validated['name']);
+        $validated['sku'] = Str::upper(trim($validated['sku']));
 
-        return response()->json([
-            'success' => true,
-            'data' => $product,
-        ]);
-    }
-
-    public function store(Request $request): JsonResponse
-    {
-        $validated = $request->validate([
-            'name' => ['required', 'string', 'max:255'],
-            'category_id' => ['sometimes', 'nullable', 'integer'],
-            'brand_id' => ['sometimes', 'nullable', 'integer'],
-            'price' => ['required', 'numeric', 'min:0'],
-            'old_price' => ['sometimes', 'nullable', 'numeric'],
-            'tag' => ['sometimes', 'nullable', 'string'],
-            'stock' => ['sometimes', 'integer', 'min:0'],
-            'sku' => ['sometimes', 'nullable', 'string'],
-            'image_url' => ['sometimes', 'nullable', 'string'],
-            'images' => ['sometimes', 'nullable', 'array'],
-            'colors' => ['sometimes', 'nullable', 'array'],
-            'sizes' => ['sometimes', 'nullable', 'array'],
-            'description' => ['sometimes', 'nullable', 'string'],
-        ]);
-
-        $validated['slug'] = Str::slug($validated['name']) . '-' . Str::random(5);
-        if (empty($validated['sku'])) {
-            $validated['sku'] = 'STR-' . strtoupper(Str::random(6));
-        }
-
+        $variantsData = $request->input('variants');
         $product = Product::create($validated);
 
+        if (is_array($variantsData)) {
+            foreach ($variantsData as $v) {
+                $product->variants()->create([
+                    'sku' => !empty($v['sku']) ? $v['sku'] : ($product->sku . '-' . Str::random(5)),
+                    'price' => $v['price'] ?? $product->price,
+                    'sale_price' => $v['sale_price'] ?? null,
+                    'stock' => isset($v['stock']) ? (int) $v['stock'] : 0,
+                    'attributes' => $v['attributes'] ?? [],
+                    'is_active' => $v['is_active'] ?? true,
+                ]);
+            }
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Tạo sản phẩm thành công',
-            'data' => $product,
+            'message' => 'Tạo sản phẩm mới thành công.',
+            'data' => $product->load(['category', 'variants']),
+            'errors' => null,
         ], 201);
     }
 
-    public function update(Request $request, $id): JsonResponse
+    /**
+     * Get a single product by ID (excluding soft-deleted).
+     *
+     * @group Product Management
+     */
+    public function show(Request $request, Product $product): JsonResponse
     {
-        $product = Product::find($id);
-        if (!$product) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy sản phẩm'], 404);
+        if ($product->trashed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sản phẩm không tồn tại hoặc đã bị xóa.',
+                'data' => null,
+                'errors' => ['product' => ['Sản phẩm đã bị xóa.']],
+            ], 404);
         }
 
-        $validated = $request->validate([
-            'name' => ['sometimes', 'string', 'max:255'],
-            'category_id' => ['sometimes', 'nullable', 'integer'],
-            'brand_id' => ['sometimes', 'nullable', 'integer'],
-            'price' => ['sometimes', 'numeric', 'min:0'],
-            'old_price' => ['sometimes', 'nullable', 'numeric'],
-            'tag' => ['sometimes', 'nullable', 'string'],
-            'stock' => ['sometimes', 'integer', 'min:0'],
-            'sku' => ['sometimes', 'nullable', 'string'],
-            'image_url' => ['sometimes', 'nullable', 'string'],
-            'images' => ['sometimes', 'nullable', 'array'],
-            'colors' => ['sometimes', 'nullable', 'array'],
-            'sizes' => ['sometimes', 'nullable', 'array'],
-            'description' => ['sometimes', 'nullable', 'string'],
-            'is_active' => ['sometimes', 'boolean'],
-        ]);
-
-        $product->update($validated);
+        $isAdmin = $request->boolean('admin') || $request->boolean('all');
+        if (!$product->is_active && !$isAdmin) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sản phẩm này hiện đang tạm ngừng kinh doanh.',
+                'data' => null,
+                'errors' => ['product' => ['Sản phẩm hiện đang tạm ngừng kinh doanh.']],
+            ], 404);
+        }
 
         return response()->json([
             'success' => true,
-            'message' => 'Cập nhật sản phẩm thành công',
-            'data' => $product->fresh(['category', 'brand', 'variants', 'productImages']),
+            'message' => 'Lấy thông tin sản phẩm thành công.',
+            'data' => $product->load(['category', 'variants']),
+            'errors' => null,
         ]);
     }
 
-    public function destroy($id): JsonResponse
+    /**
+     * Update a product.
+     *
+     * @group Product Management
+     */
+    public function update(UpsertProductRequest $request, Product $product): JsonResponse
     {
-        $product = Product::find($id);
-        if (!$product) {
-            return response()->json(['success' => false, 'message' => 'Không tìm thấy sản phẩm'], 404);
+        if ($product->trashed()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Không thể cập nhật sản phẩm đã bị xóa.',
+                'data' => null,
+                'errors' => ['product' => ['Sản phẩm đã bị xóa.']],
+            ], 404);
         }
 
+        $validated = $request->validated();
+        if (isset($validated['name'])) {
+            $validated['name'] = trim($validated['name']);
+        }
+        if (isset($validated['slug'])) {
+            $validated['slug'] = Str::slug($validated['slug']);
+        }
+        if (isset($validated['sku'])) {
+            $validated['sku'] = Str::upper(trim($validated['sku']));
+        }
+
+        $product->update($validated);
+
+        if ($request->has('variants') && is_array($request->input('variants'))) {
+            $product->variants()->delete();
+            foreach ($request->input('variants') as $v) {
+                $product->variants()->create([
+                    'sku' => !empty($v['sku']) ? $v['sku'] : ($product->sku . '-' . Str::random(5)),
+                    'price' => $v['price'] ?? $product->price,
+                    'sale_price' => $v['sale_price'] ?? null,
+                    'stock' => isset($v['stock']) ? (int) $v['stock'] : 0,
+                    'attributes' => $v['attributes'] ?? [],
+                    'is_active' => $v['is_active'] ?? true,
+                ]);
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Cập nhật sản phẩm thành công.',
+            'data' => $product->fresh()->load(['category', 'variants']),
+            'errors' => null,
+        ]);
+    }
+
+    /**
+     * Soft delete a product.
+     *
+     * @group Product Management
+     */
+    public function destroy(Product $product): JsonResponse
+    {
         $product->delete();
 
         return response()->json([
             'success' => true,
-            'message' => 'Xóa sản phẩm thành công',
+            'message' => 'Đã chuyển sản phẩm vào thùng rác thành công (xóa mềm).',
+            'data' => null,
+            'errors' => null,
         ]);
     }
 
+    /**
+     * Check real-time stock availability for items.
+     *
+     * @group Stock Management
+     */
     public function checkStock(Request $request): JsonResponse
     {
-        $items = $request->input('items', []);
-        $results = [];
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+        ]);
 
-        foreach ($items as $item) {
-            $productId = $item['product_id'] ?? 0;
-            $qty = $item['quantity'] ?? 1;
-            $product = Product::find($productId);
+        $productIds = collect($validated['items'])->pluck('product_id')->unique();
+        $products = Product::whereIn('id', $productIds)
+            ->get()
+            ->keyBy('id');
 
-            $available = $product ? ($product->stock >= $qty) : false;
-            $results[] = [
-                'product_id' => $productId,
-                'requested' => $qty,
-                'in_stock' => $product ? $product->stock : 0,
-                'available' => $available,
-            ];
+        $outOfStock = [];
+        $itemsStatus = [];
+        $isAllAvailable = true;
+
+        foreach ($validated['items'] as $item) {
+            $pid = $item['product_id'];
+            $reqQty = $item['quantity'];
+
+            /** @var Product|null $p */
+            $p = $products->get($pid);
+
+            if (!$p || !$p->is_active) {
+                $isAllAvailable = false;
+                $outOfStock[] = [
+                    'product_id' => $pid,
+                    'name' => $p ? $p->name : ('Sản phẩm #' . $pid),
+                    'requested' => $reqQty,
+                    'available_stock' => 0,
+                    'reason' => 'Sản phẩm không tồn tại hoặc đã ngừng kinh doanh.',
+                ];
+                $itemsStatus[] = [
+                    'product_id' => $pid,
+                    'available' => false,
+                    'stock' => 0,
+                ];
+                continue;
+            }
+
+            $currentStock = (int) $p->stock;
+            if ($currentStock < $reqQty) {
+                $isAllAvailable = false;
+                $outOfStock[] = [
+                    'product_id' => $pid,
+                    'name' => $p->name,
+                    'requested' => $reqQty,
+                    'available_stock' => $currentStock,
+                    'reason' => 'Kho chỉ còn ' . $currentStock . ' sản phẩm.',
+                ];
+                $itemsStatus[] = [
+                    'product_id' => $pid,
+                    'name' => $p->name,
+                    'available' => false,
+                    'stock' => $currentStock,
+                ];
+            } else {
+                $itemsStatus[] = [
+                    'product_id' => $pid,
+                    'name' => $p->name,
+                    'available' => true,
+                    'stock' => $currentStock,
+                ];
+            }
+        }
+
+        if (!$isAllAvailable) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Một số sản phẩm không đủ số lượng tồn kho.',
+                'data' => [
+                    'is_available' => false,
+                    'out_of_stock' => $outOfStock,
+                    'items' => $itemsStatus,
+                ],
+                'errors' => ['stock' => $outOfStock],
+            ], 422);
         }
 
         return response()->json([
             'success' => true,
-            'data' => $results,
+            'message' => 'Toàn bộ sản phẩm đều sẵn sàng trong kho.',
+            'data' => [
+                'is_available' => true,
+                'items' => $itemsStatus,
+            ],
+            'errors' => null,
+        ]);
+    }
+
+    /**
+     * Deduct stock atomically within DB transaction.
+     *
+     * @group Stock Management
+     */
+    public function deductStock(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            $deducted = DB::transaction(function () use ($validated) {
+                $results = [];
+
+                foreach ($validated['items'] as $item) {
+                    $pid = (int) $item['product_id'];
+                    $qty = (int) $item['quantity'];
+
+                    $product = Product::where('id', $pid)
+                        ->lockForUpdate()
+                        ->first();
+
+                    if (!$product || !$product->is_active) {
+                        $name = $product ? "\"{$product->name}\"" : "#{$pid}";
+                        throw new Exception("Sản phẩm {$name} không tồn tại hoặc đã ngừng kinh doanh.");
+                    }
+
+                    if ((int) $product->stock < $qty) {
+                        throw new Exception("Sản phẩm \"{$product->name}\" không đủ tồn kho (yêu cầu {$qty}, trong kho còn {$product->stock}).");
+                    }
+
+                    $product->decrement('stock', $qty);
+
+                    $results[] = [
+                        'product_id' => $pid,
+                        'name' => $product->name,
+                        'deducted_quantity' => $qty,
+                        'remaining_stock' => (int) $product->fresh()->stock,
+                    ];
+                }
+
+                return $results;
+            });
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Trừ tồn kho sản phẩm thành công.',
+                'data' => $deducted,
+                'errors' => null,
+            ]);
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+                'data' => null,
+                'errors' => ['stock' => [$e->getMessage()]],
+            ], 422);
+        }
+    }
+
+    /**
+     * Restore stock when order is cancelled or rolled back.
+     *
+     * @group Stock Management
+     */
+    public function restoreStock(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.product_id' => ['required', 'integer', 'min:1'],
+            'items.*.quantity' => ['required', 'integer', 'min:1'],
+        ]);
+
+        DB::transaction(function () use ($validated) {
+            foreach ($validated['items'] as $item) {
+                $pid = (int) $item['product_id'];
+                $qty = (int) $item['quantity'];
+
+                $product = Product::where('id', $pid)->lockForUpdate()->first();
+                if ($product) {
+                    $product->increment('stock', $qty);
+                }
+            }
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Hoàn trả tồn kho thành công.',
+            'data' => null,
+            'errors' => null,
         ]);
     }
 }

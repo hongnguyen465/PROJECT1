@@ -4,7 +4,6 @@ import { motion } from 'framer-motion'
 import { ShoppingBag, Star, Check } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import type { Product } from '../types'
-import { formatVND } from '../utils'
 
 interface ProductCardProps {
   product: Product
@@ -27,6 +26,9 @@ export function ProductCard({ product, className = '' }: ProductCardProps) {
     setAdded(true)
     setTimeout(() => setAdded(false), 1500)
   }
+
+  const formatCurrency = (val: number) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(val)
 
   const discountPercent =
     product.oldPrice && product.oldPrice > product.price
@@ -76,12 +78,17 @@ export function ProductCard({ product, className = '' }: ProductCardProps) {
             <span className="font-semibold uppercase tracking-wider text-lime-400/90">
               {typeof product.brand === 'object' && product.brand !== null ? (product.brand as any).name : (product.brand || 'STRIKER')}
             </span>
-            <span className="flex items-center gap-1 text-amber-400">
-              <Star size={12} className="fill-amber-400" />
-              <span className="font-bold text-slate-200">
-                {product.rating != null ? Number(product.rating).toFixed(1) : '5.0'}
+            <div className="flex items-center gap-2">
+              <span className="flex items-center gap-1 text-amber-400">
+                <Star size={12} className="fill-amber-400" />
+                <span className="font-bold text-slate-200">
+                  {product.rating != null ? Number(product.rating).toFixed(1) : '5.0'}
+                </span>
               </span>
-            </span>
+              <span className="text-[10px] text-slate-400">
+                Đã bán {product.soldCount && product.soldCount > 0 ? (product.soldCount > 999 ? `${(product.soldCount / 1000).toFixed(1)}k` : product.soldCount) : 0}
+              </span>
+            </div>
           </div>
 
           <Link to={`/product/${product.id}`} className="block mt-1">
@@ -94,10 +101,10 @@ export function ProductCard({ product, className = '' }: ProductCardProps) {
         {/* Price & Action */}
         <div className="flex items-end justify-between pt-1">
           <div className="flex flex-col">
-            <span className="text-base font-black text-white">{formatVND(product.price)}</span>
+            <span className="text-base font-black text-white">{formatCurrency(product.price)}</span>
             {product.oldPrice && product.oldPrice > product.price && (
               <span className="text-[11px] text-slate-500 line-through">
-                {formatVND(product.oldPrice)}
+                {formatCurrency(product.oldPrice)}
               </span>
             )}
           </div>

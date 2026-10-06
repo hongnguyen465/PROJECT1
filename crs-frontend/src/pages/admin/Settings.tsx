@@ -110,7 +110,7 @@ export const Settings: React.FC = () => {
       fetchBanners().catch(() => []),
       fetchCategories().catch(() => []),
       fetchBrands().catch(() => []),
-      fetchProducts({ per_page: 100 }).catch(() => [])
+      fetchProducts({ per_page: 100, all: 1 }).catch(() => [])
     ]).then(([bannersRes, catsRes, brandsRes, prodsRes]) => {
       if (!active) return;
 

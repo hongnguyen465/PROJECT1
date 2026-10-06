@@ -12,23 +12,26 @@ class PasswordResetOtpMail extends Mailable
 {
     use Queueable, SerializesModels;
 
-    public function __construct(
-        public string $otp,
-        public ?string $name = null
-    ) {}
+    public $otp;
+    public $userName;
+
+    public function __construct(string $otp, string $userName = 'Quý khách')
+    {
+        $this->otp = $otp;
+        $this->userName = $userName;
+    }
 
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: 'Mã OTP đặt lại mật khẩu STRIKER',
+            subject: 'Mã OTP khôi phục mật khẩu - STRIKER SPORT',
         );
     }
 
     public function content(): Content
     {
-        $userName = $this->name ?? 'Quý khách';
         return new Content(
-            htmlString: "<h2>Chào {$userName},</h2><p>Mã OTP đặt lại mật khẩu của bạn là: <strong style='color:#ef4444;font-size:24px;'>{$this->otp}</strong></p><p>Mã có hiệu lực trong vòng 10 phút. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>",
+            view: 'emails.forgot_otp',
         );
     }
 }

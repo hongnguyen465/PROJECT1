@@ -14,8 +14,6 @@ import type { Address, Role, User } from '../types'
 export type AuthContextValue = {
   user: User | null
   isAuthenticated: boolean
-  authModalOpen: boolean
-  setAuthModalOpen: (open: boolean) => void
   login: (user: User, token?: string) => void
   logout: () => void
   updateUserProfile: (data: Partial<User>) => void
@@ -38,17 +36,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!stored) return null
     try {
       const parsed = JSON.parse(stored) as User & { phone_number?: string }
-      if (!parsed || typeof parsed !== 'object' || !parsed.id) {
-        localStorage.removeItem('crs_user')
-        localStorage.removeItem('crs_role')
-        localStorage.removeItem('crs_token')
-        return null
-      }
       if (!parsed.role) {
-        parsed.role = 'customer'
-      }
-      if (!parsed.name) {
-        parsed.name = parsed.email ? parsed.email.split('@')[0] : 'Người dùng'
+        parsed.role = 'user'
       }
       if (parsed.addresses && parsed.addresses.length > 0) {
         parsed.addresses = parsed.addresses.map((a: any) =>
@@ -61,16 +50,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch {
       localStorage.removeItem('crs_user')
       localStorage.removeItem('crs_role')
-      localStorage.removeItem('crs_token')
       return null
     }
   })
-
-  const setAuthModalOpen = (open: boolean) => {
-    if (open) {
-      window.location.href = '/login'
-    }
-  }
 
   useEffect(() => {
     if (user) {
@@ -234,8 +216,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const value: AuthContextValue = {
     user,
     isAuthenticated: Boolean(user),
-    authModalOpen: false,
-    setAuthModalOpen,
     login,
     logout,
     updateUserProfile,

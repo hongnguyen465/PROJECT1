@@ -15,33 +15,32 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchProducts, createProduct, updateProduct, deleteProduct, fetchCategories, fetchBrands } from '../../services/catalog';
+import { fetchSalesSummary } from '../../services/orders';
 import type { Product, ProductVariant, CategoryItem, BrandItem } from '../../types';
 
-const DEFAULT_CATEGORY: CategoryItem = {
+export const DEFAULT_CATEGORY: CategoryItem = {
   id: 999,
   name: 'Khác',
   description: 'Danh mục mặc định của hệ thống',
   slug: 'khac',
 };
 
-const DEFAULT_BRAND: BrandItem = {
+export const DEFAULT_BRAND: BrandItem = {
   id: 999,
   name: 'Khác',
   description: 'Thương hiệu mặc định của hệ thống',
 };
 
-const getCategoryName = (c: unknown): string => {
+export const getCategoryName = (c: any): string => {
   if (!c) return '';
   if (typeof c === 'string') return c;
-  const obj = c as { name?: string; title?: string };
-  return obj.name || obj.title || '';
+  return c.name || c.title || '';
 };
 
-const getBrandName = (b: unknown): string => {
+export const getBrandName = (b: any): string => {
   if (!b) return '';
   if (typeof b === 'string') return b;
-  const obj = b as { name?: string; title?: string };
-  return obj.name || obj.title || '';
+  return b.name || b.title || '';
 };
 
 // Helpers to identify and ensure system default items
@@ -95,10 +94,11 @@ export const Products: React.FC = () => {
   const loadData = async () => {
     try {
       setLoading(true);
-      const [catsRes, brandsRes, prodsRes] = await Promise.all([
+      const [catsRes, brandsRes, prodsRes, salesRes] = await Promise.all([
         fetchCategories().catch(() => []),
         fetchBrands().catch(() => []),
-        fetchProducts({ per_page: 100 }).catch(() => [])
+        fetchProducts({ per_page: 100, all: 1 }).catch(() => []),
+        fetchSalesSummary().catch(() => ({} as Record<string | number, number>)),
       ]);
 
       if (Array.isArray(catsRes) && catsRes.length > 0) {
@@ -108,6 +108,7 @@ export const Products: React.FC = () => {
         setBrandsList(ensureDefaultBrand(brandsRes));
       }
 
+      const salesMap = salesRes || {};
       const pRaw: any[] = Array.isArray(prodsRes) ? prodsRes : (prodsRes?.data ?? []);
       if (Array.isArray(pRaw)) {
         setProductsList(
@@ -117,6 +118,8 @@ export const Products: React.FC = () => {
             oldPrice: p.old_price != null ? Number(p.old_price) : (p.oldPrice != null ? Number(p.oldPrice) : undefined),
             old_price: p.old_price != null ? Number(p.old_price) : (p.oldPrice != null ? Number(p.oldPrice) : undefined),
             stock: Number(p.stock) || 0,
+            soldCount: Number(salesMap[p.id] ?? salesMap[Number(p.id)] ?? p.soldCount ?? p.sold_count ?? 0),
+            sold_count: Number(salesMap[p.id] ?? salesMap[Number(p.id)] ?? p.soldCount ?? p.sold_count ?? 0),
             category: getCategoryName(p.category) || 'Khác',
             brand: getBrandName(p.brand) || 'Khác',
             image: p.image_url ?? p.image ?? '',
@@ -655,23 +658,24 @@ export const Products: React.FC = () => {
 
       {/* 3. Products Data Table */}
       <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-3xl shadow-2xl overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[1000px]">
+        <div className="overflow-x-auto scrollbar-thin scrollbar-thumb-zinc-700">
+          <table className="w-full text-left border-collapse min-w-[1120px]">
             <thead>
-              <tr className="border-b border-zinc-800 bg-zinc-950/40 text-[11px] font-mono uppercase tracking-wider text-zinc-400">
-                <th className="py-4 px-6">SẢN PHẨM & THUMBNAIL</th>
-                <th className="py-4 px-4">DANH MỤC</th>
-                <th className="py-4 px-4">GIÁ BÁN / GIÁ GỐC</th>
-                <th className="py-4 px-4">BIẾN THỂ</th>
-                <th className="py-4 px-4">TỒN KHO TỔNG</th>
-                <th className="py-4 px-4">TRẠNG THÁI</th>
-                <th className="py-4 px-6 text-right">THAO TÁC</th>
+              <tr className="border-b border-zinc-800 bg-zinc-950/60 text-[11px] font-mono uppercase tracking-wider text-zinc-400 whitespace-nowrap">
+                <th className="py-4 px-5">SẢN PHẨM & THUMBNAIL</th>
+                <th className="py-4 px-3.5">DANH MỤC</th>
+                <th className="py-4 px-3.5">GIÁ BÁN</th>
+                <th className="py-4 px-3.5">BIẾN THỂ</th>
+                <th className="py-4 px-3.5">TỒN KHO</th>
+                <th className="py-4 px-3.5">ĐÃ BÁN</th>
+                <th className="py-4 px-3.5">TRẠNG THÁI</th>
+                <th className="py-4 px-5 text-right">THAO TÁC</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-800/60 text-sm">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-zinc-500">
+                  <td colSpan={8} className="py-12 text-center text-zinc-500">
                     <div className="inline-block h-6 w-6 animate-spin rounded-full border-2 border-lime-400 border-t-transparent mb-2" />
                     <p className="text-xs font-mono">Đang tải danh sách sản phẩm từ máy chủ...</p>
                   </td>
@@ -689,58 +693,58 @@ export const Products: React.FC = () => {
                       !isCurrentlyActive ? 'opacity-70 bg-zinc-950/30' : ''
                     }`}
                   >
-                    {/* Cột 1: Product & Thumbnail (Name + Brand directly below) */}
-                    <td className="py-4 px-6">
-                      <div className="flex items-center gap-3.5">
-                        <div className="relative w-14 h-14 rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 flex-shrink-0 group-hover:border-lime-400/50 transition">
+                    {/* Cột 1: Product & Thumbnail */}
+                    <td className="py-4 px-5 min-w-[240px]">
+                      <div className="flex items-center gap-3">
+                        <div className="relative w-12 h-12 rounded-2xl overflow-hidden bg-zinc-950 border border-zinc-800 flex-shrink-0 group-hover:border-lime-400/50 transition">
                           <img
                             src={product.image}
                             alt={product.name}
                             className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
                           />
                           {product.tag && (
-                            <span className="absolute top-1 left-1 px-1.5 py-0.2 text-[9px] font-black uppercase font-mono bg-lime-400 text-zinc-950 rounded">
+                            <span className="absolute top-0.5 left-0.5 px-1 py-0.2 text-[8px] font-black uppercase font-mono bg-lime-400 text-zinc-950 rounded">
                               {product.tag}
                             </span>
                           )}
                         </div>
-                        <div>
-                          <h3 className="font-bold text-white group-hover:text-lime-400 transition leading-snug">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-bold text-white group-hover:text-lime-400 transition leading-snug truncate max-w-[220px]" title={product.name}>
                             {product.name}
                           </h3>
-                          <div className="text-xs font-semibold text-lime-400 mt-0.5">
+                          <div className="text-xs font-semibold text-lime-400 mt-0.5 whitespace-nowrap">
                             {getBrandName(product.brand)}
                           </div>
                         </div>
                       </div>
                     </td>
 
-                    {/* Cột 2: Category (Single Badge only) */}
-                    <td className="py-4 px-4">
-                      <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800/80 text-zinc-300 border border-zinc-700/60">
+                    {/* Cột 2: Category (Single Badge with whitespace-nowrap) */}
+                    <td className="py-4 px-3.5 whitespace-nowrap">
+                      <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-semibold bg-zinc-800/80 text-zinc-300 border border-zinc-700/60 whitespace-nowrap">
                         {getCategoryName(product.category)}
                       </span>
                     </td>
 
-                    {/* Cột 3: Price (Strikethrough old price only if oldPrice > price) */}
-                    <td className="py-4 px-4">
-                      <div className="font-mono font-bold text-lime-400">
+                    {/* Cột 3: Price (Strikethrough old price) */}
+                    <td className="py-4 px-3.5 whitespace-nowrap">
+                      <div className="font-mono font-bold text-lime-400 text-sm whitespace-nowrap">
                         {Number(product.price).toLocaleString('vi-VN')}₫
                       </div>
                       {hasDiscount && (
-                        <div className="font-mono text-xs text-zinc-400 line-through mt-0.5">
+                        <div className="font-mono text-xs text-zinc-400 line-through mt-0.5 whitespace-nowrap">
                           {Number(product.oldPrice).toLocaleString('vi-VN')}₫
                         </div>
                       )}
                     </td>
 
                     {/* Cột 4: Variants Breakdown */}
-                    <td className="py-4 px-4">
-                      <div className="flex flex-wrap gap-1 max-w-[180px]">
+                    <td className="py-4 px-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1 flex-nowrap">
                         {product.sizes?.map((size) => (
                           <span
                             key={size}
-                            className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-zinc-950 border border-zinc-800 text-zinc-300 rounded"
+                            className="px-1.5 py-0.5 text-[10px] font-mono font-bold bg-zinc-950 border border-zinc-800 text-zinc-300 rounded whitespace-nowrap"
                           >
                             {size}
                           </span>
@@ -749,8 +753,8 @@ export const Products: React.FC = () => {
                     </td>
 
                     {/* Cột 5: Stock Alert */}
-                    <td className="py-4 px-4">
-                      <div className="flex items-center gap-2">
+                    <td className="py-4 px-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-2 whitespace-nowrap">
                         <span
                           className={`font-mono font-bold text-sm ${
                             isOutOfStock
@@ -763,26 +767,36 @@ export const Products: React.FC = () => {
                           {product.stock}
                         </span>
                         {isOutOfStock ? (
-                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-red-500/10 text-red-400 border border-red-500/30 rounded-md">
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-red-500/10 text-red-400 border border-red-500/30 rounded-md whitespace-nowrap">
                             Hết hàng
                           </span>
                         ) : isLowStock ? (
-                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-md flex items-center gap-1">
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded-md flex items-center gap-1 whitespace-nowrap">
                             <AlertTriangle className="w-2.5 h-2.5" /> Sắp hết
                           </span>
                         ) : (
-                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-md">
+                          <span className="px-2 py-0.5 text-[10px] font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 rounded-md whitespace-nowrap">
                             Sẵn sàng
                           </span>
                         )}
                       </div>
                     </td>
 
-                    {/* Cột 6: Status Active Toggle */}
-                    <td className="py-4 px-4">
+                    {/* Cột 6: Lượt bán (Sold Count) */}
+                    <td className="py-4 px-3.5 whitespace-nowrap">
+                      <div className="flex items-center gap-1.5 whitespace-nowrap">
+                        <span className="font-mono font-bold text-sm text-lime-400">
+                          {product.soldCount && product.soldCount > 0 ? (product.soldCount > 999 ? `${(product.soldCount / 1000).toFixed(1)}k` : product.soldCount) : 0}
+                        </span>
+                        <span className="text-[11px] text-zinc-500 font-medium whitespace-nowrap">đã bán</span>
+                      </div>
+                    </td>
+
+                    {/* Cột 7: Status Active Toggle */}
+                    <td className="py-4 px-3.5 whitespace-nowrap">
                       <button
                         onClick={() => handleToggleActive(product.id)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition hover:scale-105 ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition hover:scale-105 ${
                           isCurrentlyActive
                             ? 'bg-lime-400/10 text-lime-400 border border-lime-400/30 hover:bg-lime-400/20 shadow-sm shadow-lime-400/10'
                             : 'bg-zinc-800 text-zinc-400 border border-zinc-700 hover:text-zinc-200'
@@ -790,13 +804,13 @@ export const Products: React.FC = () => {
                         title="Bấm để chuyển đổi trạng thái Đang bán / Ngừng kinh doanh"
                       >
                         {isCurrentlyActive ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                        <span>{isCurrentlyActive ? 'Đang bán' : 'Ngừng kinh doanh'}</span>
+                        <span className="whitespace-nowrap">{isCurrentlyActive ? 'Đang bán' : 'Ngừng bán'}</span>
                       </button>
                     </td>
 
-                    {/* Cột 7: Actions: Edit & Soft Delete Buttons */}
-                    <td className="py-4 px-6 text-right">
-                      <div className="flex items-center justify-end gap-1.5">
+                    {/* Cột 8: Actions: Edit & Soft Delete Buttons */}
+                    <td className="py-4 px-5 text-right whitespace-nowrap">
+                      <div className="flex items-center justify-end gap-1.5 whitespace-nowrap">
                         <button
                           onClick={() => handleOpenEdit(product)}
                           className="p-2 rounded-xl bg-zinc-800/80 hover:bg-lime-400 hover:text-zinc-950 text-zinc-300 transition"
@@ -819,7 +833,7 @@ export const Products: React.FC = () => {
 
               {filteredProducts.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-zinc-500">
+                  <td colSpan={8} className="py-12 text-center text-zinc-500">
                     <Package className="w-12 h-12 mx-auto mb-3 opacity-30 text-lime-400" />
                     <p className="text-sm font-semibold">Không tìm thấy sản phẩm nào phù hợp.</p>
                     <button

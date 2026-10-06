@@ -805,7 +805,7 @@ export const Orders: React.FC = () => {
                               title="Tạo đơn Giao Hàng Nhanh (GHN)"
                             >
                               <Package className="w-3.5 h-3.5 stroke-[2.5]" />
-                              <span>Tạo đơn GHN</span>
+                              <span>Xử lý</span>
                             </button>
 
                             <button
@@ -1040,9 +1040,9 @@ export const Orders: React.FC = () => {
                             item.image?.startsWith('http') || item.image?.startsWith('data:')
                               ? item.image
                               : item.image?.startsWith('/storage/')
-                              ? `http://localhost:8000${item.image}`
+                              ? item.image
                               : item.image
-                              ? `http://localhost:8000/storage/${item.image}`
+                              ? `/storage/${item.image}`
                               : 'https://images.unsplash.com/photo-1511886929837-354d827aae26?auto=format&fit=crop&w=300&q=80'
                           }
                           alt={item.name}

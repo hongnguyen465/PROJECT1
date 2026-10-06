@@ -14,7 +14,6 @@ class Banner extends Model
         'subtitle',
         'tag',
         'image',
-        'image_url',
         'link',
         'order',
         'is_active',
