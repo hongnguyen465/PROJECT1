@@ -58,7 +58,7 @@ class MomoService
             'lang' => 'vi',
             'extraData' => $extraData,
             'requestType' => $requestType,
-            'signature' => hash_hmac('sha256', $rawHash, $secretKey),
+            'signature' => hash_hmac('sha256', $rawHash, $secretKey), //
         ];
 
         $transaction->update([
@@ -115,7 +115,7 @@ class MomoService
             '&transId=' . ($payload['transId'] ?? '');
 
         return hash_equals(
-            hash_hmac('sha256', $rawHash, $secretKey),
+            hash_hmac('sha256', $rawHash, $secretKey), //
             (string) $payload['signature']
         );
     }
