@@ -6,9 +6,18 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['order_id', 'user_id', 'payment_method', 'transaction_id', 'amount', 'status', 'paid_at'])]
 class Payment extends Model
 {
+    protected $fillable = [
+        'order_id',
+        'user_id',
+        'payment_method',
+        'transaction_id',
+        'amount',
+        'status',
+        'paid_at',
+    ];
+
     protected function casts(): array
     {
         return [

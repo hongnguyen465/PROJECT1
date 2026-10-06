@@ -306,6 +306,9 @@ class AuthController extends Controller
         // Tạo mật khẩu mới ngẫu nhiên (hoặc mật khẩu mặc định an toàn)
         $temporaryPassword = Str::random(8) . '@Stk1';
         $user->password = Hash::make($temporaryPassword);
+        if (!$user->email_verified_at) {
+            $user->email_verified_at = now();
+        }
         $user->save();
 
         // Xóa mã OTP khỏi Cache ngay khi xác thực thành công

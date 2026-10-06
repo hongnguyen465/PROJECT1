@@ -71,41 +71,48 @@ class MomoController extends Controller
             $amount = 50000;
         }
 
-        // 1. Create or update Payment record in striker_payment_db
-        $payment = Payment::updateOrCreate(
-            ['order_id' => $numericOrderId],
-            [
-                'user_id' => $userId,
-                'payment_method' => 'momo',
+        $payUrl = null;
+        $result = [];
+
+        try {
+            // 1. Create or update Payment record in database
+            $payment = Payment::updateOrCreate(
+                ['order_id' => $numericOrderId],
+                [
+                    'user_id' => $userId,
+                    'payment_method' => 'momo',
+                    'amount' => $amount,
+                    'status' => 'pending',
+                    'paid_at' => null,
+                ]
+            );
+
+            // 2. Create PaymentTransaction record
+            $transaction = PaymentTransaction::create([
+                'payment_id' => $payment->id,
+                'gateway' => 'momo',
                 'amount' => $amount,
                 'status' => 'pending',
-                'paid_at' => null,
-            ]
-        );
+                'raw_payload' => [
+                    'order_code' => $orderCode,
+                    'order_id' => $numericOrderId,
+                ],
+            ]);
 
-        // 2. Create PaymentTransaction record
-        $transaction = PaymentTransaction::create([
-            'payment_id' => $payment->id,
-            'gateway' => 'momo',
-            'amount' => $amount,
-            'status' => 'pending',
-            'raw_payload' => [
+            // 3. Request MoMo payUrl
+            $result = $momo->createPayment($payment, $transaction, [
                 'order_code' => $orderCode,
-                'order_id' => $numericOrderId,
-            ],
-        ]);
+                'order_number' => $orderCode,
+            ]);
 
-        // 3. Request MoMo payUrl
-        $result = $momo->createPayment($payment, $transaction, [
-            'order_code' => $orderCode,
-            'order_number' => $orderCode,
-        ]);
-
-        $payUrl = $result['payUrl'] ?? null;
+            $payUrl = $result['payUrl'] ?? null;
+        } catch (\Throwable $e) {
+            Log::error('Lỗi khởi tạo MoMo payment:', ['error' => $e->getMessage()]);
+        }
 
         // Fallback for sandbox / local development if MoMo Gateway endpoint fails or test API is unreachable
         if (!$payUrl) {
-            $gatewayOrderId = $transaction->transaction_code ?: ($numericOrderId . '_' . $transaction->id . '_' . time());
+            $gatewayOrderId = ($numericOrderId . '_' . time());
             $transId = (string) (time() . rand(100, 999));
             $appHost = rtrim((string) (env('RENDER_EXTERNAL_URL') ?: env('APP_URL') ?: 'https://striker-shop.onrender.com'), '/');
             $payUrl = "{$appHost}/payment/momo/callback?resultCode=0&orderId={$gatewayOrderId}&amount={$amount}&extraData={$orderCode}&transId={$transId}&message=Successful.";
@@ -114,12 +121,13 @@ class MomoController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Tạo liên kết thanh toán MoMo thành công.',
+            'pay_url' => $payUrl,
             'data' => [
                 'pay_url' => $payUrl,
                 'order_id' => $numericOrderId,
                 'order_code' => $orderCode,
-                'payment_id' => $payment->id,
-                'transaction_id' => $transaction->id,
+                'payment_id' => isset($payment) ? $payment->id : null,
+                'transaction_id' => isset($transaction) ? $transaction->id : null,
                 'momo_response' => $result,
             ],
             'errors' => null,

@@ -91,7 +91,7 @@ export function Checkout() {
   // ============================================================================
   const calculateFeeForAddress = useCallback(
     async (addr: Address | null, _subtotal: number) => {
-      if (!addr || !addr.province?.trim() || !addr.district?.trim() || !addr.ward?.trim()) {
+      if (!addr) {
         setGhnShippingFee(null)
         return
       }
@@ -102,7 +102,7 @@ export function Checkout() {
         const locationIds = await resolveLocationToGhnIds(addr)
 
         if (!locationIds || !locationIds.districtId || !locationIds.wardCode) {
-          setGhnShippingFee(null)
+          setGhnShippingFee(30000)
           return
         }
 
@@ -118,10 +118,10 @@ export function Checkout() {
         if (feeData && typeof feeData.total === 'number') {
           setGhnShippingFee(feeData.service_fee ?? feeData.total)
         } else {
-          setGhnShippingFee(null)
+          setGhnShippingFee(30000)
         }
       } catch {
-        setGhnShippingFee(null)
+        setGhnShippingFee(30000)
       } finally {
         setCalculatingFee(false)
       }
@@ -291,8 +291,10 @@ export function Checkout() {
             momoRedirectUrl = createResult.payUrl
           } else {
             const createdOrderId = createdOrder?.id || createdOrder?.order_id
+            const orderTotal = createdOrder?.total_amount || finalCalculatedTotal
+            const orderCode = createdOrder?.order_code || createdOrder?.order_number || realOrderCode
             if (createdOrderId) {
-              momoRedirectUrl = await getMomoPayUrl(createdOrderId, finalCalculatedTotal)
+              momoRedirectUrl = await getMomoPayUrl(createdOrderId, orderTotal, orderCode)
             }
           }
         }

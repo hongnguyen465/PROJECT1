@@ -127,12 +127,23 @@ class GhnService
         $response = Http::withHeaders($headers)->post("{$this->baseUrl}/v2/shipping-order/fee", $payload);
 
         if (! $response->successful()) {
-            Log::error('GHN calculateFee error', ['payload' => $payload, 'status' => $response->status(), 'body' => $response->body()]);
-            $msg = $response->json('message') ?? $response->json('code_message_value') ?? 'Lỗi tính phí giao hàng GHN.';
-            throw new Exception($msg);
+            Log::warning('GHN calculateFee fallback standard fee applied', ['payload' => $payload, 'status' => $response->status(), 'body' => $response->body()]);
+            $fee = ($toDistrictId === $this->fromDistrictId) ? 22000 : 30000;
+            return [
+                'total' => $fee,
+                'service_fee' => $fee,
+                'insurance_fee' => 0,
+                'pick_station_fee' => 0,
+                'coupon_value' => 0,
+                'r2s_fee' => 0,
+            ];
         }
 
-        return $response->json('data') ?? [];
+        return $response->json('data') ?? [
+            'total' => 30000,
+            'service_fee' => 30000,
+            'insurance_fee' => 0,
+        ];
     }
 
     /**

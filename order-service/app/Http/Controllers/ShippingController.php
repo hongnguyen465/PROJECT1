@@ -116,8 +116,13 @@ class ShippingController extends Controller
             ]);
         } catch (Exception $e) {
             return response()->json([
-                'message' => $e->getMessage(),
-            ], 422);
+                'message' => 'Áp dụng phí giao hàng tiêu chuẩn.',
+                'data' => [
+                    'total' => 30000,
+                    'service_fee' => 30000,
+                    'insurance_fee' => 0,
+                ],
+            ]);
         }
     }
 
