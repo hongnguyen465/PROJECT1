@@ -52,7 +52,6 @@ ENV APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr LOG_LEVEL=info \
     MAIL_HOST=smtp.gmail.com \
     MAIL_PORT=587 \
     MAIL_USERNAME=nttranq5@gmail.com \
-    MAIL_PASSWORD=lzerchcfmijlfrla \
     MAIL_ENCRYPTION=tls \
     MAIL_FROM_ADDRESS=nttranq5@gmail.com \
     MAIL_FROM_NAME="STRIKER SHOP" \
