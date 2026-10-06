@@ -29,6 +29,7 @@ export MAIL_PASSWORD="${MAIL_PASSWORD:-}"
 export MAIL_ENCRYPTION="${MAIL_ENCRYPTION:-tls}"
 export MAIL_FROM_ADDRESS="${MAIL_FROM_ADDRESS:-nttranq5@gmail.com}"
 export MAIL_FROM_NAME="${MAIL_FROM_NAME:-STRIKER SHOP}"
+export RESEND_API_KEY="${RESEND_API_KEY:-}"
 
 # Substitute PORT into Nginx template
 envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/http.d/default.conf

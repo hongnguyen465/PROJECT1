@@ -54,7 +54,6 @@ ENV APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr LOG_LEVEL=info \
     MAIL_USERNAME=nttranq5@gmail.com \
     MAIL_ENCRYPTION=tls \
     MAIL_FROM_ADDRESS=nttranq5@gmail.com \
-    MAIL_FROM_NAME="STRIKER SHOP" \
     DB_CONNECTION=mysql SESSION_DRIVER=database SESSION_SECURE_COOKIE=true \
     CACHE_STORE=database QUEUE_CONNECTION=sync PORT=10000 RUN_MIGRATIONS=false RUN_SEEDERS=false
 

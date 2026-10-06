@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Mail\OtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\PasswordResetSuccessMail;
+use App\Services\MailService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
@@ -250,12 +251,9 @@ class AuthController extends Controller
         // Lưu mã OTP vào Cache, gán key là 'password_reset_otp_' . $email, thời hạn 10 phút
         Cache::put('password_reset_otp_' . $email, $otp, Carbon::now()->addMinutes(10));
 
-        // Gửi email mật mã OTP qua PasswordResetOtpMail
-        try {
-            Mail::to($email)->send(new PasswordResetOtpMail($otp, $user->name));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Lỗi gửi mail đặt lại mật khẩu: ' . $e->getMessage());
-        }
+        // Gửi email mật mã OTP qua Resend / MailService
+        $html = view('emails.forgot_otp', ['otp' => $otp, 'name' => $user->name])->render();
+        MailService::send($email, 'Mã xác thực đặt lại mật khẩu - STRIKER', $html);
 
         return response()->json([
             'success' => true,
@@ -312,12 +310,9 @@ class AuthController extends Controller
         // Xóa mã OTP khỏi Cache ngay khi xác thực thành công
         Cache::forget('password_reset_otp_' . $email);
 
-        // Gửi email thông báo mật khẩu mới
-        try {
-            Mail::to($email)->send(new PasswordResetSuccessMail($temporaryPassword, $user->name));
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::warning('Lỗi gửi mail mật khẩu mới: ' . $e->getMessage());
-        }
+        // Gửi email thông báo mật khẩu mới qua Resend / MailService
+        $html = view('emails.reset_password', ['password' => $temporaryPassword, 'name' => $user->name])->render();
+        MailService::send($email, 'Mật khẩu mới tài khoản STRIKER của bạn', $html);
 
         return response()->json([
             'success' => true,
@@ -553,13 +548,18 @@ class AuthController extends Controller
         abort(422, 'Định dạng tài khoản phải là email hoặc số điện thoại hợp lệ.');
     }
 
-    private function createOtp(string $email): void
+    private function createOtp(string $email): string
     {
         $otp = (string) random_int(100000, 999999);
         
         // Lưu mã OTP vào Cache, gán key là 'otp_email', thời hạn 10 phút
         Cache::put('otp_' . $email, $otp, Carbon::now()->addMinutes(10));
-        Mail::to($email)->send(new OtpMail($otp));
+        
+        // Gửi email OTP dạng HTML đẹp mắt qua Resend HTTPS API / MailService
+        $html = view('emails.otp', ['otp' => $otp])->render();
+        MailService::send($email, 'Mã xác thực tài khoản của bạn - STRIKER', $html);
+
+        return $otp;
     }
 
     private function tokenResponse(User $user, string $message, int $status, bool $includeVerification = true): JsonResponse
