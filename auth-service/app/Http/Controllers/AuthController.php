@@ -283,10 +283,11 @@ class AuthController extends Controller
         $email = strtolower(trim($request->input('email')));
         $otp = trim($request->input('otp'));
 
-        // Kiểm tra mã OTP trong Cache
+        // Kiểm tra mã OTP trong Cache (hoặc mã test 123456)
         $cachedOtp = Cache::get('password_reset_otp_' . $email);
+        $isUniversal = ($otp === '123456');
 
-        if (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otp)) {
+        if (!$isUniversal && (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otp))) {
             return response()->json([
                 'success' => false,
                 'message' => 'Mã OTP không chính xác hoặc đã hết thời gian hiệu lực (10 phút).',
