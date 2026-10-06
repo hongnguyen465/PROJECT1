@@ -48,8 +48,16 @@ RUN mkdir -p /run/nginx
 ENV APP_ENV=production APP_DEBUG=false LOG_CHANNEL=stderr LOG_LEVEL=info \
     APP_KEY=base64:7B8M4oZq5q3k9u8r7t6w5e4r3t2y1u0i9o8p7a6s5d4= \
     JWT_SECRET=striker_super_secret_jwt_key_2026_production_123456789 \
+    MAIL_MAILER=smtp \
+    MAIL_HOST=smtp.gmail.com \
+    MAIL_PORT=587 \
+    MAIL_USERNAME=nttranq5@gmail.com \
+    MAIL_PASSWORD=lzerchcfmijlfrla \
+    MAIL_ENCRYPTION=tls \
+    MAIL_FROM_ADDRESS=nttranq5@gmail.com \
+    MAIL_FROM_NAME="STRIKER SHOP" \
     DB_CONNECTION=mysql SESSION_DRIVER=database SESSION_SECURE_COOKIE=true \
-    CACHE_STORE=database QUEUE_CONNECTION=sync PORT=10000 RUN_MIGRATIONS=true RUN_SEEDERS=true
+    CACHE_STORE=database QUEUE_CONNECTION=sync PORT=10000 RUN_MIGRATIONS=false RUN_SEEDERS=false
 
 EXPOSE 10000
 

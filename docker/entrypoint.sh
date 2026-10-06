@@ -21,6 +21,14 @@ fi
 export PORT="${PORT:-10000}"
 export APP_KEY="${APP_KEY:-base64:7B8M4oZq5q3k9u8r7t6w5e4r3t2y1u0i9o8p7a6s5d4=}"
 export JWT_SECRET="${JWT_SECRET:-striker_super_secret_jwt_key_2026_production_123456789}"
+export MAIL_MAILER="${MAIL_MAILER:-smtp}"
+export MAIL_HOST="${MAIL_HOST:-smtp.gmail.com}"
+export MAIL_PORT="${MAIL_PORT:-587}"
+export MAIL_USERNAME="${MAIL_USERNAME:-nttranq5@gmail.com}"
+export MAIL_PASSWORD="${MAIL_PASSWORD:-lzerchcfmijlfrla}"
+export MAIL_ENCRYPTION="${MAIL_ENCRYPTION:-tls}"
+export MAIL_FROM_ADDRESS="${MAIL_FROM_ADDRESS:-nttranq5@gmail.com}"
+export MAIL_FROM_NAME="${MAIL_FROM_NAME:-STRIKER SHOP}"
 
 # Substitute PORT into Nginx template
 envsubst '${PORT}' < /etc/nginx/templates/default.conf.template > /etc/nginx/http.d/default.conf
