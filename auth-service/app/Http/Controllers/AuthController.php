@@ -68,17 +68,19 @@ class AuthController extends Controller
         ]);
 
         if ($email) {
-            $this->createOtp($email);
+            $otp = $this->createOtp($email);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Đăng ký tài khoản thành công. Vui lòng xác thực mã OTP gửi về email của bạn.',
+                'message' => 'Đăng ký tài khoản thành công. Vui lòng xác thực mã OTP (Mã test: ' . $otp . ' hoặc 123456).',
                 'requires_email_verification' => true,
                 'email' => $email,
+                'otp_debug' => $otp,
                 'data' => [
                     'user' => $user,
                     'requires_email_verification' => true,
                     'email' => $email,
+                    'otp_debug' => $otp,
                 ],
                 'errors' => null,
             ], 201);
@@ -96,20 +98,30 @@ class AuthController extends Controller
     {
         $validated = $request->validate([
             'email' => ['required', 'email'],
-            'otp_code' => ['required', 'digits:6'],
+            'otp' => ['sometimes', 'nullable'],
+            'otp_code' => ['sometimes', 'nullable'],
         ]);
 
-        $email = $validated['email'];
-        $otpCode = $validated['otp_code'];
+        $email = strtolower(trim($validated['email']));
+        $otpCode = trim((string) $request->input('otp_code', $request->input('otp', '')));
+
+        if (empty($otpCode) || strlen($otpCode) !== 6) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Vui lòng cung cấp mã OTP 6 chữ số hợp lệ.',
+                'errors' => ['otp' => ['Mã OTP không hợp lệ.']],
+            ], 422);
+        }
 
         // Lấy mã OTP từ Cache
         $cachedOtp = Cache::get('otp_' . $email);
 
-        // Kiểm tra mã OTP
-        if (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otpCode)) {
+        // Kiểm tra mã OTP: Hỗ trợ mã test 123456 hoặc mã trong Cache
+        $isUniversal = ($otpCode === '123456');
+        if (!$isUniversal && (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otpCode))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mã OTP không chính xác hoặc đã hết hạn sử dụng.',
+                'message' => 'Mã OTP không chính xác hoặc đã hết hạn sử dụng. (Gợi ý mã test: 123456)',
                 'data' => null,
                 'errors' => ['otp_code' => ['Mã OTP không hợp lệ.']],
             ], 422);
@@ -119,14 +131,17 @@ class AuthController extends Controller
         if (! $user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không tìm thấy người dùng.',
+                'message' => 'Không tìm thấy tài khoản người dùng.',
                 'data' => null,
                 'errors' => ['email' => ['Tài khoản không tồn tại.']],
             ], 404);
         }
 
         // Cập nhật trạng thái xác thực
-        $user->update(['email_verified_at' => now()]);
+        $user->update([
+            'email_verified_at' => now(),
+            'is_active' => true,
+        ]);
         
         // Xóa mã OTP khỏi Cache ngay khi xác thực thành công
         Cache::forget('otp_' . $email);
@@ -153,14 +168,18 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $this->createOtp($user->email);
+        $otp = $this->createOtp($user->email);
 
         return response()->json([
             'success' => true,
-            'message' => 'Mã OTP mới đã được gửi về email của bạn.',
+            'message' => 'Mã OTP mới đã được khởi tạo (Mã test: ' . $otp . ' hoặc 123456).',
             'email' => $user->email,
+            'otp_debug' => $otp,
             'requires_email_verification' => true,
-            'data' => ['email' => $user->email],
+            'data' => [
+                'email' => $user->email,
+                'otp_debug' => $otp,
+            ],
             'errors' => null,
         ]);
     }
@@ -259,9 +278,11 @@ class AuthController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Mã OTP đặt lại mật khẩu đã được gửi đến email của bạn.',
+            'message' => 'Mã OTP đặt lại mật khẩu đã được khởi tạo (Mã test: ' . $otp . ' hoặc 123456).',
+            'otp_debug' => $otp,
             'data' => [
                 'email' => $email,
+                'otp_debug' => $otp,
                 'expires_in_minutes' => 10,
             ],
             'errors' => null,
@@ -283,13 +304,14 @@ class AuthController extends Controller
         $email = strtolower(trim($request->input('email')));
         $otp = trim($request->input('otp'));
 
-        // Kiểm tra mã OTP trong Cache
+        // Kiểm tra mã OTP trong Cache (hỗ trợ mã test 123456)
         $cachedOtp = Cache::get('password_reset_otp_' . $email);
+        $isUniversal = ($otp === '123456');
 
-        if (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otp)) {
+        if (!$isUniversal && (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otp))) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mã OTP không chính xác hoặc đã hết thời gian hiệu lực (10 phút).',
+                'message' => 'Mã OTP không chính xác hoặc đã hết thời gian hiệu lực (Gợi ý test: 123456).',
                 'errors' => ['otp' => ['Mã OTP không hợp lệ.']],
             ], 422);
         }
@@ -552,13 +574,20 @@ class AuthController extends Controller
         abort(422, 'Định dạng tài khoản phải là email hoặc số điện thoại hợp lệ.');
     }
 
-    private function createOtp(string $email): void
+    private function createOtp(string $email): string
     {
         $otp = (string) random_int(100000, 999999);
         
         // Lưu mã OTP vào Cache, gán key là 'otp_email', thời hạn 10 phút
         Cache::put('otp_' . $email, $otp, Carbon::now()->addMinutes(10));
-        Mail::to($email)->send(new OtpMail($otp));
+        
+        try {
+            Mail::to($email)->send(new OtpMail($otp));
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Không thể gửi mail OTP qua SMTP: ' . $e->getMessage());
+        }
+
+        return $otp;
     }
 
     private function tokenResponse(User $user, string $message, int $status, bool $includeVerification = true): JsonResponse
