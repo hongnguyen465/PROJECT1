@@ -26,9 +26,9 @@ class MomoService
         $amount = (string) ((int) $payment->amount);
         
         // MoMo unique orderId: <order_id>_<payment_id>_<transaction_id>_<timestamp>
-        $gatewayOrderId = $orderIdNumeric . '_' . $transaction->id . '_' . time();
-        $redirectUrl = config('services.momo.redirect_url') ?: env('MOMO_REDIRECT_URL', 'http://localhost:8000/payment/momo/callback');
-        $ipnUrl = config('services.momo.ipn_url') ?: env('MOMO_IPN_URL', 'http://localhost:8000/payment/momo/ipn');
+        $appHost = rtrim((string) (env('RENDER_EXTERNAL_URL') ?: env('APP_URL') ?: 'https://striker-shop.onrender.com'), '/');
+        $redirectUrl = config('services.momo.redirect_url') ?: env('MOMO_REDIRECT_URL', "{$appHost}/payment/momo/callback");
+        $ipnUrl = config('services.momo.ipn_url') ?: env('MOMO_IPN_URL', "{$appHost}/payment/momo/ipn");
         $extraData = (string) ($options['order_code'] ?? $options['order_number'] ?? $orderIdNumeric);
         $requestId = (string) time();
         $requestType = config('services.momo.request_type', env('MOMO_REQUEST_TYPE', 'payWithATM'));

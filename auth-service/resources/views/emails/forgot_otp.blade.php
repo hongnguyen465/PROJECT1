@@ -124,7 +124,7 @@
             <div class="badge">YÊU CẦU KHÔI PHỤC MẬT KHẨU</div>
             <h1>Mã OTP Xác Thực Của Bạn</h1>
             <p>
-                Xin chào <strong>{{ $userName }}</strong>,<br>
+                Xin chào <strong>{{ $userName ?? $name ?? 'Khách hàng' }}</strong>,<br>
                 Bạn vừa yêu cầu cấp lại mật khẩu cho tài khoản tại <strong>STRIKER SPORT</strong>. Vui lòng nhập mã xác thực OTP 6 số dưới đây trên màn hình để hệ thống khởi tạo mật khẩu mới:
             </p>
 

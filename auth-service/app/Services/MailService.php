@@ -13,7 +13,7 @@ class MailService
      */
     public static function send(string $to, string $subject, string $htmlContent): bool
     {
-        $apiKey = env('RESEND_API_KEY');
+        $apiKey = config('services.resend.key') ?: env('RESEND_API_KEY') ?: getenv('RESEND_API_KEY');
 
         if (!empty($apiKey)) {
             try {

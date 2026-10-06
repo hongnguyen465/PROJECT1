@@ -16,7 +16,7 @@ Route::get('/payment/momo/callback', function (Request $request) {
         \Illuminate\Support\Facades\Log::error('Lỗi gọi callback payment-service từ web.php:', ['error' => $e->getMessage()]);
     }
     $status = (string) $request->input('resultCode', '0') === '0' ? 'success' : 'failed';
-    return redirect("http://localhost:5173/orders?status={$status}");
+    return redirect("/orders?status={$status}");
 })->name('payment.momo.callback');
 
 Route::post('/payment/momo/ipn', function (Request $request) {

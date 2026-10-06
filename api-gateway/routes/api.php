@@ -17,7 +17,7 @@ Route::get('/payment/momo/callback', function (Illuminate\Http\Request $request)
 
     $status = (string) $request->input('resultCode', '0') === '0' ? 'success' : 'failed';
     // 2. Chuyển hướng trình duyệt về trang kết quả đơn hàng Frontend React
-    return redirect("http://localhost:5173/orders?status={$status}");
+    return redirect("/orders?status={$status}");
 });
 
 // MoMo Server Webhook IPN Handler

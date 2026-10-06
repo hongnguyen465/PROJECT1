@@ -107,7 +107,8 @@ class MomoController extends Controller
         if (!$payUrl) {
             $gatewayOrderId = $transaction->transaction_code ?: ($numericOrderId . '_' . $transaction->id . '_' . time());
             $transId = (string) (time() . rand(100, 999));
-            $payUrl = "http://localhost:8000/api/payment/momo/callback?resultCode=0&orderId={$gatewayOrderId}&amount={$amount}&extraData={$orderCode}&transId={$transId}&message=Successful.";
+            $appHost = rtrim((string) (env('RENDER_EXTERNAL_URL') ?: env('APP_URL') ?: 'https://striker-shop.onrender.com'), '/');
+            $payUrl = "{$appHost}/payment/momo/callback?resultCode=0&orderId={$gatewayOrderId}&amount={$amount}&extraData={$orderCode}&transId={$transId}&message=Successful.";
         }
 
         return response()->json([
@@ -154,7 +155,7 @@ class MomoController extends Controller
                 ], 400);
             }
 
-            return redirect('http://localhost:5173/orders?status=failed');
+            return redirect('/orders?status=failed');
         }
 
         // Process completion and notify order-service
@@ -168,7 +169,7 @@ class MomoController extends Controller
             ]);
         }
 
-        return redirect('http://localhost:5173/orders?status=success');
+        return redirect('/orders?status=success');
     }
 
     /**

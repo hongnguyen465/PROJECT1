@@ -252,7 +252,8 @@ class AuthController extends Controller
         Cache::put('password_reset_otp_' . $email, $otp, Carbon::now()->addMinutes(10));
 
         // Gửi email mật mã OTP qua Resend / MailService
-        $html = view('emails.forgot_otp', ['otp' => $otp, 'name' => $user->name])->render();
+        $userName = $user->name ?? $user->full_name ?? 'Khách hàng';
+        $html = view('emails.forgot_otp', ['otp' => $otp, 'name' => $userName, 'userName' => $userName])->render();
         MailService::send($email, 'Mã xác thực đặt lại mật khẩu - STRIKER', $html);
 
         return response()->json([
@@ -311,7 +312,13 @@ class AuthController extends Controller
         Cache::forget('password_reset_otp_' . $email);
 
         // Gửi email thông báo mật khẩu mới qua Resend / MailService
-        $html = view('emails.reset_password', ['password' => $temporaryPassword, 'name' => $user->name])->render();
+        $userName = $user->name ?? $user->full_name ?? 'Khách hàng';
+        $html = view('emails.reset_password', [
+            'password' => $temporaryPassword,
+            'temporaryPassword' => $temporaryPassword,
+            'name' => $userName,
+            'userName' => $userName
+        ])->render();
         MailService::send($email, 'Mật khẩu mới tài khoản STRIKER của bạn', $html);
 
         return response()->json([

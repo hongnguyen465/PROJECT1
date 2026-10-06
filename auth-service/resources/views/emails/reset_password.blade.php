@@ -153,16 +153,16 @@
             <div class="badge">KHÔI PHỤC MẬT KHẨU THÀNH CÔNG</div>
             <h1>Mật Khẩu Mới Của Bạn</h1>
             <p>
-                Xin chào <strong>{{ $userName }}</strong>,<br>
+                Xin chào <strong>{{ $userName ?? $name ?? 'Khách hàng' }}</strong>,<br>
                 Yêu cầu khôi phục mật khẩu của bạn đã được xác minh thành công. Dưới đây là mật khẩu tạm thời mới để bạn đăng nhập vào hệ thống:
             </p>
 
             <div class="password-wrapper">
                 <div class="password-label">Mật khẩu đăng nhập mới:</div>
-                <div class="password-code">{{ $temporaryPassword }}</div>
+                <div class="password-code">{{ $temporaryPassword ?? $password ?? '******' }}</div>
             </div>
 
-            <a href="http://localhost:5173/login" class="btn-login">ĐĂNG NHẬP NGAY &rarr;</a>
+            <a href="/login" class="btn-login">ĐĂNG NHẬP NGAY &rarr;</a>
 
             <div class="security-note">
                 🔒 <strong>Khuyến nghị an toàn:</strong> Sau khi đăng nhập thành công bằng mật khẩu tạm này, bạn hãy vào mục <strong>Trang cá nhân &rarr; Đổi mật khẩu</strong> để cập nhật lại mật khẩu quen thuộc của mình nhé!
