@@ -85,11 +85,11 @@ class GatewayController extends Controller
             // If downstream returned JSON or standard response
             if ($status >= 200 && $status < 300) {
                 if (is_array($decoded)) {
-                    $payload = [
-                        'success' => true,
+                    $payload = array_merge($decoded, [
+                        'success' => $decoded['success'] ?? true,
                         'data' => array_key_exists('data', $decoded) ? $decoded['data'] : $decoded,
                         'message' => $decoded['message'] ?? 'Thao tác thành công.',
-                    ];
+                    ]);
                     if (isset($decoded['pagination'])) {
                         $payload['pagination'] = $decoded['pagination'];
                     }

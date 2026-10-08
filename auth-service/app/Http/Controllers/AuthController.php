@@ -95,13 +95,17 @@ class AuthController extends Controller
      */
     public function verifyEmail(Request $request): JsonResponse
     {
+        if (!$request->has('otp_code') && $request->has('otp')) {
+            $request->merge(['otp_code' => $request->input('otp')]);
+        }
+
         $validated = $request->validate([
             'email' => ['required', 'email'],
             'otp_code' => ['required', 'digits:6'],
         ]);
 
-        $email = $validated['email'];
-        $otpCode = $validated['otp_code'];
+        $email = strtolower(trim($validated['email']));
+        $otpCode = trim($validated['otp_code']);
 
         // Lấy mã OTP từ Cache
         $cachedOtp = Cache::get('otp_' . $email);

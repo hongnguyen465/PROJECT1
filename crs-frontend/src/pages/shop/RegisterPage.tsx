@@ -73,21 +73,34 @@ export function RegisterPage() {
           password
         )
 
-        if (response.requires_email_verification || response.email) {
+        const requiresVerification =
+          response.requires_email_verification ??
+          response.data?.requires_email_verification ??
+          Boolean(response.email || response.data?.email)
+
+        const targetEmail =
+          response.email ??
+          response.data?.email ??
+          email.trim().toLowerCase()
+
+        if (requiresVerification) {
           toast.success('Đăng ký thành công! Vui lòng kiểm tra mã OTP 6 số trong email.')
-          navigate(`/verify-email?email=${encodeURIComponent(response.email || email.trim())}`)
+          navigate(`/verify-email?email=${encodeURIComponent(targetEmail)}`)
           return
         }
-        const userObj = response.user
 
-        if (!userObj) {
-          throw new Error('Không nhận được thông tin người dùng từ máy chủ.')
+        const userObj = response.user ?? response.data?.user
+        const token = response.token ?? response.data?.token ?? 'demo-token'
+
+        if (userObj) {
+          login(userObj, token)
+          triggerConfetti()
+          toast.success('🎉 Đăng ký tài khoản thành công!')
+          navigate('/')
+        } else {
+          toast.success('Đăng ký thành công! Vui lòng đăng nhập.')
+          navigate('/login')
         }
-
-        login(userObj, response.token)
-        triggerConfetti()
-        toast.success('🎉 Đăng ký tài khoản thành công!')
-        navigate('/')
       } else {
         const response = await registerApi(name.trim(), phone.trim(), password)
         const userObj = response.user ?? response.data?.user ?? {

@@ -60,7 +60,11 @@ export function VerifyEmail() {
     setError('')
     try {
       const response = await verifyEmail(email, value)
-      login(response.user, response.token)
+      const user = response.user || response.data?.user
+      const token = response.token || response.data?.token || 'demo-token'
+      if (user) {
+        login(user, token)
+      }
       confetti({
         particleCount: 140,
         spread: 90,

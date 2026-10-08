@@ -80,7 +80,7 @@ export async function register(
 }
 
 export async function verifyEmail(email: string, otp: string) {
-  const response = await api.post('/auth/verify-email', { email, otp })
+  const response = await api.post('/auth/verify-email', { email, otp, otp_code: otp })
   return response.data
 }
 
