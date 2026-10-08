@@ -6,6 +6,7 @@ use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Throwable;
 
@@ -31,17 +32,50 @@ class GatewayController extends Controller
         return $this->forward($request, 'payment');
     }
 
+    public function chat(Request $request, ?string $any = null): Response|JsonResponse
+    {
+        return $this->forward($request, 'chat');
+    }
+
     private function forward(Request $request, string $service): JsonResponse|Response
     {
         $baseUrl = rtrim((string) config("services.microservices.{$service}"), '/');
-        $targetUrl = $baseUrl.'/'.ltrim($request->path(), '/');
+        $path = ltrim($request->path(), '/');
+        $targetUrl = $baseUrl.'/'.$path;
+        $method = strtoupper($request->method());
+
+        // Cache các request GET công khai (catalog, banners, coupons, reviews) để phản hồi trong 1ms
+        $isCacheable = $method === 'GET' 
+            && empty($request->header('Authorization'))
+            && (
+                str_starts_with($path, 'api/categories') ||
+                str_starts_with($path, 'api/brands') ||
+                str_starts_with($path, 'api/banners') ||
+                str_starts_with($path, 'api/coupons') ||
+                str_starts_with($path, 'api/products') ||
+                str_starts_with($path, 'api/reviews/summary') ||
+                str_starts_with($path, 'api/orders/sales-summary')
+            );
+
+        $cacheKey = 'gw_cache_' . md5($targetUrl . '_' . serialize($request->query()));
+
+        if ($isCacheable && Cache::has($cacheKey)) {
+            $cachedPayload = Cache::get($cacheKey);
+            if (is_array($cachedPayload)) {
+                return response()->json($cachedPayload, 200);
+            }
+        }
 
         try {
             $contentType = $request->header('Content-Type', 'application/json');
             $response = Http::withHeaders($this->forwardedHeaders($request))
-                ->withOptions(['http_errors' => false])
+                ->withOptions([
+                    'http_errors' => false,
+                    'connect_timeout' => 2,
+                    'force_ip_resolve' => 'v4',
+                ])
                 ->withBody($request->getContent(), $contentType)
-                ->send($request->method(), $targetUrl, [
+                ->send($method, $targetUrl, [
                     'query' => $request->query(),
                 ]);
 
@@ -68,6 +102,15 @@ class GatewayController extends Controller
                     if (isset($decoded['user'])) {
                         $payload['user'] = $decoded['user'];
                     }
+                    if (isset($decoded['ai_response'])) {
+                        $payload['ai_response'] = $decoded['ai_response'];
+                    }
+
+                    // Lưu cache trong 30 giây cho các GET công khai
+                    if ($isCacheable) {
+                        Cache::put($cacheKey, $payload, 30);
+                    }
+
                     return response()->json($payload, $status);
                 }
 

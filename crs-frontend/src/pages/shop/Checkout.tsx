@@ -32,7 +32,6 @@ export function Checkout() {
     cartSubtotal,
     appliedCoupon,
     removeCoupon,
-    addOrder,
     refreshOrders,
     removePurchasedItems,
     user,
@@ -311,7 +310,6 @@ export function Checkout() {
 
     // Xóa ngay các sản phẩm đã đặt mua khỏi giỏ hàng
     removePurchasedItems(itemsToCheckout)
-    addOrder(newOrder)
     setSubmitting(false)
 
     if (isMoMo) {

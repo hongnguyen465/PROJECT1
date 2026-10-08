@@ -7,6 +7,7 @@ return [
         'catalog' => env('CATALOG_SERVICE_URL', 'http://127.0.0.1:8002'),
         'order' => env('ORDER_SERVICE_URL', 'http://127.0.0.1:8003'),
         'payment' => env('PAYMENT_SERVICE_URL', 'http://127.0.0.1:8004'),
+        'chat' => env('CHAT_SERVICE_URL', 'http://127.0.0.1:8005'),
     ],
 
     /*

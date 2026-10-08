@@ -67,9 +67,30 @@ class MomoService
         ]);
 
         try {
-            $verifySsl = filter_var(config('services.momo.verify_ssl', env('MOMO_VERIFY_SSL', false)), FILTER_VALIDATE_BOOLEAN);
-            $response = Http::timeout(6)->withOptions(['verify' => $verifySsl])->post($endpoint, $data);
-            $result = $response->json() ?? [];
+            $ch = curl_init($endpoint);
+            curl_setopt_array($ch, [
+                CURLOPT_RETURNTRANSFER => true,
+                CURLOPT_SSL_VERIFYPEER => false,
+                CURLOPT_SSL_VERIFYHOST => false,
+                CURLOPT_TIMEOUT => 6,
+                CURLOPT_CONNECTTIMEOUT => 3,
+                CURLOPT_POST => true,
+                CURLOPT_POSTFIELDS => json_encode($data),
+                CURLOPT_HTTPHEADER => [
+                    'Content-Type: application/json',
+                ],
+            ]);
+            $rawResponse = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlErr = curl_error($ch);
+            curl_close($ch);
+
+            if ($curlErr) {
+                Log::error('MoMo cURL Error: ' . $curlErr);
+                $result = ['resultCode' => 99, 'message' => 'Lỗi kết nối MoMo: ' . $curlErr];
+            } else {
+                $result = json_decode((string) $rawResponse, true) ?? [];
+            }
         } catch (\Exception $e) {
             Log::error('Lỗi gọi API MoMo Gateway:', ['error' => $e->getMessage()]);
             $result = [

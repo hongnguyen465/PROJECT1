@@ -36,9 +36,11 @@ Route::post('/payment/momo/ipn', function (Illuminate\Http\Request $request) {
 Route::any('/auth/{any?}', [GatewayController::class, 'auth'])->where('any', '.*');
 Route::any('/addresses/{any?}', [GatewayController::class, 'auth'])->where('any', '.*');
 Route::any('/users/{any?}', [GatewayController::class, 'auth'])->where('any', '.*');
-Route::any('/chat/{any?}', [GatewayController::class, 'auth'])->where('any', '.*');
-Route::any('/user/chat/{any?}', [GatewayController::class, 'auth'])->where('any', '.*');
-Route::any('/admin/chat/{any?}', [GatewayController::class, 'auth'])->where('any', '.*');
+
+// Chat Service Routes (Dedicated Chatbox Microservice + Gemini AI)
+Route::any('/chat/{any?}', [GatewayController::class, 'chat'])->where('any', '.*');
+Route::any('/user/chat/{any?}', [GatewayController::class, 'chat'])->where('any', '.*');
+Route::any('/admin/chat/{any?}', [GatewayController::class, 'chat'])->where('any', '.*');
 
 // Chặn truy cập công khai vào endpoint nội bộ của Catalog Service (SEC-02)
 Route::match(['POST', 'PUT', 'PATCH', 'DELETE'], '/products/deduct-stock', function () {
@@ -77,3 +79,27 @@ Route::any('/shipping/{any?}', [GatewayController::class, 'order'])->where('any'
 // Payment Service Routes (Port 8004)
 Route::any('/payments/{any?}', [GatewayController::class, 'payment'])->where('any', '.*');
 Route::any('/payment/{any?}', [GatewayController::class, 'payment'])->where('any', '.*');
+
+// Chat Uploads via /api/uploads/chat/{filename}
+Route::get('/uploads/chat/{filename}', function ($filename) {
+    $localPath = base_path('../chat-service/public/uploads/chat/' . $filename);
+    if (file_exists($localPath)) {
+        return response()->file($localPath);
+    }
+
+    $chatService = rtrim((string) config('services.microservices.chat', env('CHAT_SERVICE_URL', 'http://127.0.0.1:8005')), '/');
+    try {
+        $response = Http::withoutVerifying()->timeout(5)->get("{$chatService}/uploads/chat/{$filename}");
+        if ($response->successful()) {
+            return response($response->body(), 200, [
+                'Content-Type' => $response->header('Content-Type') ?: 'image/jpeg',
+                'Cache-Control' => 'public, max-age=86400',
+            ]);
+        }
+    } catch (\Exception $e) {
+        \Illuminate\Support\Facades\Log::error('Lỗi proxy chat upload từ api-gateway:', ['error' => $e->getMessage()]);
+    }
+
+    return response()->json(['message' => 'File not found'], 404);
+})->where('filename', '.*');
+

@@ -164,6 +164,46 @@ services:
     networks:
       - striker_network
 
+  # Chat Service (Port 8005)
+  chat-service:
+    build:
+      context: ./chat-service
+      dockerfile: Dockerfile
+    container_name: striker_chat_service
+    restart: unless-stopped
+    ports:
+      - "8005:8005"
+    environment:
+      APP_NAME: chat-service
+      APP_ENV: local
+      APP_DEBUG: "true"
+      APP_KEY: "base64:c6diLMzSQrqjzD7m+Rnad+oqy/02dDtYY5GI7U0NonY="
+      APP_URL: "http://localhost:8005"
+      DB_CONNECTION: mysql
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_DATABASE: football_chat_db
+      DB_AUTH_DATABASE: football_auth_db
+      DB_USERNAME: root
+      DB_PASSWORD: Trang2005
+      SESSION_DRIVER: database
+      SESSION_SECURE_COOKIE: "false"
+      CACHE_STORE: database
+      QUEUE_CONNECTION: sync
+      PORT: 8005
+      RUN_MIGRATIONS: "true"
+      RUN_SEEDERS: "false"
+      AUTH_SERVICE_URL: "http://auth-service:8001"
+      CATALOG_SERVICE_URL: "http://catalog-service:8002"
+      ORDER_SERVICE_URL: "http://order-service:8003"
+      GEMINI_API_KEY: ""
+      GEMINI_MODEL: "gemini-2.5-flash"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - striker_network
+
   # API Gateway (Port 8000)
   api-gateway:
     build:
@@ -184,12 +224,14 @@ services:
       CATALOG_SERVICE_URL: "http://catalog-service:8002"
       ORDER_SERVICE_URL: "http://order-service:8003"
       PAYMENT_SERVICE_URL: "http://payment-service:8004"
+      CHAT_SERVICE_URL: "http://chat-service:8005"
       INTERNAL_SERVICE_SECRET: "STRIKER_SECRET_TOKEN_2026"
     depends_on:
       - auth-service
       - catalog-service
       - order-service
       - payment-service
+      - chat-service
     networks:
       - striker_network
 

@@ -26,14 +26,14 @@ Hệ thống được thiết kế theo mô hình **Decoupled Microservices** ph
           │                              │         │                                  │
           ▼                              ▼         ▼                                  ▼
 ┌──────────────────┐  ┌────────────────────┐  ┌──────────────────┐  ┌──────────────────┐  ┌──────────────────┐
-│   auth-service   │  │  catalog-service   │  │  order-service   │  │ payment-service  │  │  External APIs   │
-│    Port: 8001    │  │     Port: 8002     │  │    Port: 8003    │  │    Port: 8004    │  │  GHN / MoMo IPN  │
+│   auth-service   │  │  catalog-service   │  │  order-service   │  │ payment-service  │  │   chat-service   │
+│    Port: 8001    │  │     Port: 8002     │  │    Port: 8003    │  │    Port: 8004    │  │    Port: 8005    │
 ├──────────────────┤  ├────────────────────┤  ├──────────────────┤  ├──────────────────┤  ├──────────────────┤
-│ • Users & Admin  │  │ • Categories       │  │ • Orders & Items │  │ • MoMo Payment   │  │ • GHN Shipping   │
-│ • User Addresses │  │ • Brands           │  │ • Cart & Items   │  │ • Transactions   │  │   Fee & Tracking │
-│ • Live Messages  │  │ • Products & Tags  │  │ • Coupons/Voucher│  │ • Payment Logs   │  │ • MoMo Sandbox   │
-│ • JWT / Password │  │ • Variants/Banners │  │ • Product Reviews│  │ • IPN Webhooks   │  │   AIO QR & ATM    │
-│ • DB: auth_db    │  │ • DB: catalog_db   │  │ • DB: order_db   │  │ • DB: payment_db │  │                  │
+│ • Users & Admin  │  │ • Categories       │  │ • Orders & Items │  │ • MoMo Payment   │  │ • Gemini AI Chat │
+│ • User Addresses │  │ • Brands           │  │ • Cart & Items   │  │ • Transactions   │  │ • Gemini Vision  │
+│ • JWT / Password │  │ • Products & Tags  │  │ • Coupons/Voucher│  │ • Payment Logs   │  │ • Live CSAT Rating│
+│ • DB: auth_db    │  │ • Variants/Banners │  │ • GHN Shipping   │  │ • IPN Webhooks   │  │ • DB: chat_db    │
+│                  │  │ • DB: catalog_db   │  │ • DB: order_db   │  │ • DB: payment_db │  │                  │
 └──────────────────┘  └────────────────────┘  └──────────────────┘  └──────────────────┘  └──────────────────┘
 ```
 
@@ -42,22 +42,26 @@ graph TD
     Client["💻 Client Browser (React 19 Frontend :5173)"]
     Gateway["🚪 API Gateway (Laravel Proxy :8000)"]
     
-    Auth["🔐 Auth Service (:8001)<br>JWT, Profile, LiveChat"]
+    Auth["🔐 Auth Service (:8001)<br>JWT, Profile, Security"]
     Catalog["📦 Catalog Service (:8002)<br>Products, Variants, Banners"]
     Order["🛒 Order Service (:8003)<br>Cart, Orders, GHN, Vouchers"]
-    Payment["💳 Payment Service (:8004)<br>MoMo AIO, Finance Lab 9"]
+    Payment["💳 Payment Service (:8004)<br>MoMo AIO, Transactions"]
+    Chat["💬 Chat Service (:8005)<br>Gemini Vision, AI Live Chat"]
     
     GHN["🚚 Giao Hàng Nhanh API (Logistics)"]
     MoMo["📱 MoMo Payment Gateway (HMAC-SHA256)"]
+    Gemini["✨ Google Gemini API (Multimodal Vision)"]
 
     Client -->|Axios HTTP REST| Gateway
     Gateway -->|Proxy /api/users, /api/auth| Auth
     Gateway -->|Proxy /api/products, /api/categories| Catalog
     Gateway -->|Proxy /api/orders, /api/cart, /api/coupons| Order
     Gateway -->|Proxy /api/payment, /api/finance| Payment
+    Gateway -->|Proxy /api/chat, /api/admin/chat| Chat
     
     Order -->|Tính phí & Tạo vận đơn| GHN
     Payment -->|Ký số & Tạo mã QR/URL| MoMo
+    Chat -->|Phân tích ảnh giày & tư vấn| Gemini
     MoMo -.->|IPN Webhook Callback| Payment
 ```
 

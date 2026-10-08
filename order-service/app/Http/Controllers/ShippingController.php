@@ -6,6 +6,7 @@ use App\Services\GhnService;
 use Exception;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Log;
 
 class ShippingController extends Controller
 {
@@ -26,9 +27,8 @@ class ShippingController extends Controller
 
             return response()->json(['data' => $provinces]);
         } catch (Exception $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 500);
+            Log::warning('ShippingController provinces error: ' . $e->getMessage());
+            return response()->json(['data' => $this->ghnService->getFallbackProvinces()]);
         }
     }
 
@@ -49,9 +49,8 @@ class ShippingController extends Controller
 
             return response()->json(['data' => $districts]);
         } catch (Exception $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 500);
+            Log::warning('ShippingController districts error: ' . $e->getMessage());
+            return response()->json(['data' => []]);
         }
     }
 
@@ -72,9 +71,8 @@ class ShippingController extends Controller
 
             return response()->json(['data' => $wards]);
         } catch (Exception $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-            ], 500);
+            Log::warning('ShippingController wards error: ' . $e->getMessage());
+            return response()->json(['data' => []]);
         }
     }
 
@@ -132,7 +130,7 @@ class ShippingController extends Controller
     public function webhook(Request $request): JsonResponse
     {
         $payload = $request->all();
-        \Illuminate\Support\Facades\Log::info('GHN Webhook received:', $payload);
+        Log::info('GHN Webhook received:', $payload);
 
         $orderCode = $payload['OrderCode'] ?? $payload['order_code'] ?? null;
         $clientOrderCode = $payload['ClientOrderCode'] ?? $payload['client_order_code'] ?? null;
@@ -181,4 +179,3 @@ class ShippingController extends Controller
         ]);
     }
 }
-

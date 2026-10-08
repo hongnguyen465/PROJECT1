@@ -30,7 +30,12 @@ export function OrderProvider({ children }: { children: ReactNode }) {
     try {
       const raw = await fetchOrders(user.id as number)
       const list: any[] = Array.isArray(raw) ? raw : raw?.data ?? []
-      setOrders(list.map(mapBackendOrder))
+      const mapped = list.map(mapBackendOrder)
+      const uniqueMap = new Map<string, Order>()
+      mapped.forEach((o) => {
+        if (o?.id) uniqueMap.set(String(o.id), o)
+      })
+      setOrders(Array.from(uniqueMap.values()))
     } catch {
       // Silent fail
     } finally {
@@ -54,7 +59,10 @@ export function OrderProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const addOrder = (newOrder: Order) => {
-    setOrders((prev) => [newOrder, ...prev])
+    setOrders((prev) => {
+      const filtered = prev.filter((o) => String(o.id) !== String(newOrder.id))
+      return [newOrder, ...filtered]
+    })
   }
 
   const updateOrderStatus = (orderId: string, status: OrderStatus, paymentStatus?: PaymentStatus) => {

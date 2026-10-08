@@ -6,6 +6,9 @@ import {
   searchAdminCustomers,
   fetchChatUserDetail,
   markAdminMessagesAsRead,
+  formatChatAttachmentUrl,
+  isPlaceholderContent,
+  renderLastMessageSnippet,
   type AdminChatUser, 
   type ChatMessage 
 } from '../../services/chat';
@@ -21,7 +24,8 @@ import {
   CheckCheck,
   UserPlus,
   Users,
-  AlertCircle
+  AlertCircle,
+  FileText
 } from 'lucide-react';
 
 interface AdminChatModalProps {
@@ -405,7 +409,7 @@ export const AdminChatModal: React.FC<AdminChatModalProps> = ({
                           </div>
                           
                           <p className={`text-xs truncate ${u.unread_count > 0 ? 'text-white font-semibold' : 'text-zinc-400'}`}>
-                            {u.last_message || 'Bấm để mở cuộc trò chuyện'}
+                            {renderLastMessageSnippet(u.last_message)}
                           </p>
                         </div>
 
@@ -532,7 +536,9 @@ export const AdminChatModal: React.FC<AdminChatModalProps> = ({
                     </div>
                   ) : (
                     messages.map((msg, idx) => {
-                      const isMe = msg.sender_id === Number(currentAdmin?.id || 1) || msg.sender_id !== selectedUser.id;
+                      const isAi = msg.sender_type?.toUpperCase() === 'AI';
+                      const isCustomer = msg.sender_type?.toUpperCase() === 'CUSTOMER' || (msg.sender_id === selectedUser.id && !isAi && msg.sender_type?.toUpperCase() !== 'ADMIN');
+                      const isMe = !isCustomer;
                       const timeStr = msg.created_at
                         ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
                         : '';
@@ -553,14 +559,81 @@ export const AdminChatModal: React.FC<AdminChatModalProps> = ({
                               className={`
                                 p-3.5 rounded-2xl text-xs leading-relaxed break-words shadow-lg
                                 ${isMe
-                                  ? 'bg-gradient-to-r from-lime-400 to-lime-500 text-zinc-950 font-medium rounded-br-none shadow-lime-400/10'
+                                  ? (isAi 
+                                      ? 'bg-zinc-800 text-zinc-100 border border-lime-400/40 rounded-br-none' 
+                                      : 'bg-gradient-to-r from-lime-400 to-lime-500 text-zinc-950 font-medium rounded-br-none shadow-lime-400/10')
                                   : 'bg-zinc-800/90 text-zinc-100 border border-zinc-700/80 rounded-bl-none'}
                               `}
                             >
-                              <div className="text-[10px] font-mono font-bold mb-1 opacity-80">
-                                {isMe ? 'Quản trị viên (Bạn)' : selectedUser.name}
+                              <div className="text-[10px] font-mono font-bold mb-1 opacity-80 flex items-center gap-1">
+                                {isMe 
+                                  ? (isAi ? '🤖 Trợ lý AI (Tự động)' : 'Quản trị viên (Bạn)') 
+                                  : selectedUser.name}
                               </div>
-                              <p className="whitespace-pre-wrap">{msg.content}</p>
+
+                              {/* Hiển thị File / Ảnh đính kèm */}
+                              {msg.attachment_url && (
+                                <div className="mb-2">
+                                  {msg.attachment_type === 'image' || msg.attachment_url.startsWith('data:image') || msg.attachment_url.match(/\.(jpeg|jpg|gif|png|webp)$/i) ? (
+                                    <img
+                                      src={formatChatAttachmentUrl(msg.attachment_url)}
+                                      alt={msg.attachment_name || 'Đính kèm'}
+                                      className="max-h-48 rounded-xl object-cover border border-white/10 hover:opacity-95 cursor-pointer shadow-sm"
+                                      onClick={() => window.open(formatChatAttachmentUrl(msg.attachment_url)!, '_blank')}
+                                    />
+                                  ) : (
+                                    <a
+                                      href={formatChatAttachmentUrl(msg.attachment_url)}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="flex items-center gap-2 p-2 rounded-xl bg-zinc-900/80 border border-white/10 hover:bg-zinc-800 text-lime-400 text-xs font-mono"
+                                    >
+                                      <FileText className="w-4 h-4 shrink-0" />
+                                      <span className="truncate">{msg.attachment_name || 'Tải tệp đính kèm'}</span>
+                                    </a>
+                                  )}
+                                </div>
+                              )}
+
+                              {!isPlaceholderContent(msg.content, Boolean(msg.attachment_url)) && (
+                                <p className="whitespace-pre-wrap">{msg.content}</p>
+                              )}
+
+                              {/* Hiển thị sản phẩm gợi ý nếu có */}
+                              {msg.metadata?.suggested_products && msg.metadata.suggested_products.length > 0 && (
+                                <div className="mt-3 pt-2.5 border-t border-white/10 space-y-1.5">
+                                  <div className="text-[10px] font-mono font-bold text-lime-400">
+                                    📦 Sản phẩm gợi ý ({msg.metadata.suggested_products.length}):
+                                  </div>
+                                  <div className="grid grid-cols-1 gap-1.5">
+                                    {msg.metadata.suggested_products.map((p: any) => (
+                                      <div key={p.id} className="flex items-center gap-2 p-1.5 rounded-lg bg-zinc-900 border border-white/5 text-[11px]">
+                                        {p.image && <img src={p.image} alt={p.name} className="w-8 h-8 rounded object-cover" />}
+                                        <div className="flex-1 min-w-0">
+                                          <div className="font-bold text-white truncate">{p.name}</div>
+                                          <div className="text-lime-400 font-mono text-[10px]">{Number(p.price).toLocaleString('vi-VN')}đ</div>
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Hiển thị thẻ đơn hàng nếu có */}
+                              {msg.metadata?.order_tracking && (
+                                <div className="mt-3 pt-2.5 border-t border-white/10 space-y-1.5 bg-zinc-950/60 p-2.5 rounded-xl">
+                                  <div className="flex items-center justify-between text-[10px] font-mono">
+                                    <span className="text-lime-400 font-bold">📦 Đơn hàng {msg.metadata.order_tracking.order_number}</span>
+                                    <span className="text-zinc-400 font-bold">{msg.metadata.order_tracking.status_label}</span>
+                                  </div>
+                                  <div className="text-[11px] text-zinc-300">
+                                    Mã vận đơn: <span className="font-mono text-lime-400">{msg.metadata.order_tracking.tracking_code}</span> ({msg.metadata.order_tracking.shipping_carrier})
+                                  </div>
+                                  <div className="text-[11px] font-bold text-white font-mono">
+                                    Tổng tiền: {Number(msg.metadata.order_tracking.total_amount).toLocaleString('vi-VN')}đ
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
 

@@ -48,30 +48,3 @@ $protectedRoutes = function (): void {
 
 Route::middleware('auth:api')->group($protectedRoutes);
 Route::prefix('auth')->middleware('auth:api')->group($protectedRoutes);
-
-/*
-|--------------------------------------------------------------------------
-| LiveChat Routes (Lab 07)
-|--------------------------------------------------------------------------
-*/
-use App\Http\Controllers\User\ChatController as UserChatController;
-use App\Http\Controllers\Admin\ChatController as AdminChatController;
-
-// 1. User Chat Routes
-$userChatRoutes = function (): void {
-    Route::post('/chat/send', [UserChatController::class, 'send'])->name('chat.send');
-    Route::get('/chat/messages', [UserChatController::class, 'getMessages'])->name('chat.messages');
-};
-Route::prefix('user')->group($userChatRoutes);
-
-// 2. Admin Chat Routes
-$adminChatRoutes = function (): void {
-    Route::get('/chat/users', [AdminChatController::class, 'getUsers'])->name('admin.chat.users');
-    Route::get('/chat/search', [AdminChatController::class, 'searchCustomers'])->name('admin.chat.search');
-    Route::get('/chat/user-detail/{userId}', [AdminChatController::class, 'getUserDetail'])->name('admin.chat.user_detail');
-    Route::get('/chat/unread-count', [AdminChatController::class, 'getUnreadCount'])->name('admin.chat.unread_count');
-    Route::get('/chat/messages/{userId}', [AdminChatController::class, 'getMessages'])->name('admin.chat.messages');
-    Route::post('/chat/send', [AdminChatController::class, 'send'])->name('admin.chat.send');
-    Route::patch('/chat/messages/{userId}/read', [AdminChatController::class, 'markAsRead'])->name('admin.chat.mark_read');
-};
-Route::prefix('admin')->group($adminChatRoutes);
