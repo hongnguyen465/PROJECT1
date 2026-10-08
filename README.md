@@ -271,12 +271,13 @@ sequenceDiagram
 
 ### 2. Cài đặt các gói phụ thuộc & Database:
 ```bash
-# Cài đặt thư viện cho 5 Microservices:
+# Cài đặt thư viện cho 6 Microservices:
 cd api-gateway && composer install && copy .env.example .env && php artisan key:generate
 cd ../auth-service && composer install && copy .env.example .env && php artisan key:generate && php artisan migrate --seed
 cd ../catalog-service && composer install && copy .env.example .env && php artisan key:generate && php artisan migrate --seed
 cd ../order-service && composer install && copy .env.example .env && php artisan key:generate && php artisan migrate --seed
 cd ../payment-service && composer install && copy .env.example .env && php artisan key:generate && php artisan migrate --seed
+cd ../chat-service && composer install && copy .env.example .env && php artisan key:generate && php artisan migrate
 
 # Cài đặt Frontend:
 cd ../crs-frontend && npm install
