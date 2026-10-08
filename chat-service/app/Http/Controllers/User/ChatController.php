@@ -9,6 +9,7 @@ use App\Services\GeminiService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class ChatController extends Controller
@@ -18,7 +19,7 @@ class ChatController extends Controller
     ) {}
 
     /**
-     * Xác định ID người dùng hiện tại từ Request / Header / JWT Token
+     * Xác định ID người dùng từ Request / Header / JWT Token
      */
     private function resolveUserId(Request $request): ?int
     {
@@ -35,7 +36,7 @@ class ChatController extends Controller
             return (int) Auth::id();
         }
 
-        // Thử giải mã JWT payload nếu có trong Authorization header
+        // Giải mã JWT Token nếu có trong Authorization header
         $authHeader = (string) $request->header('Authorization', '');
         if (str_starts_with($authHeader, 'Bearer ')) {
             $parts = explode('.', substr($authHeader, 7));
@@ -51,7 +52,7 @@ class ChatController extends Controller
     }
 
     /**
-     * Xử lý lưu trữ tệp đính kèm (Multipart file hoặc Base64 Data URL)
+     * Xử lý lưu trữ tệp đính kèm (Multipart file, Base64 Data URL, Đường dẫn server)
      * @return array{url: ?string, type: ?string, name: ?string, local_path: ?string, mime: ?string}
      */
     private function processAttachment(Request $request): array
@@ -63,11 +64,11 @@ class ChatController extends Controller
         $mimeType = null;
 
         $uploadDir = public_path('uploads/chat');
-        if (!file_exists($uploadDir)) {
+        if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0777, true);
         }
 
-        // 1. Trường hợp gửi Multipart Form File
+        // 1. Upload file từ multipart form-data
         if ($request->hasFile('file')) {
             $file = $request->file('file');
             $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
@@ -77,9 +78,9 @@ class ChatController extends Controller
             $attachmentUrl = '/uploads/chat/' . $fileName;
             $attachmentName = $file->getClientOriginalName();
             $mimeType = $file->getClientMimeType();
-            $attachmentType = str_starts_with($mimeType, 'image/') ? 'image' : 'file';
+            $attachmentType = str_starts_with((string) $mimeType, 'image/') ? 'image' : 'file';
         }
-        // 2. Trường hợp gửi chuỗi Base64 Data URL (data:image/...)
+        // 2. Base64 Data URL (data:image/...)
         elseif (!empty($attachmentUrl) && str_starts_with($attachmentUrl, 'data:image/')) {
             if (preg_match('/^data:(image\/[a-zA-Z0-9\+\-\.]+);base64,(.*)$/s', $attachmentUrl, $matches)) {
                 $mimeType = $matches[1];
@@ -102,10 +103,9 @@ class ChatController extends Controller
                 }
             }
         }
-        // 3. Trường hợp URL file tương đối đã có trên máy chủ
+        // 3. Đường dẫn ảnh có sẵn trên server
         elseif (!empty($attachmentUrl) && $attachmentType === 'image') {
-            $cleanUrl = ltrim((string) parse_url($attachmentUrl, PHP_URL_PATH), '/');
-            $candidatePath = public_path($cleanUrl);
+            $candidatePath = public_path(ltrim((string) parse_url($attachmentUrl, PHP_URL_PATH), '/'));
             if (file_exists($candidatePath)) {
                 $localPath = $candidatePath;
                 $mimeType = mime_content_type($candidatePath) ?: 'image/jpeg';
@@ -122,14 +122,13 @@ class ChatController extends Controller
     }
 
     /**
-     * Gửi tin nhắn từ Khách hàng và kích hoạt Gemini AI tự động phản hồi
+     * Gửi tin nhắn từ Khách hàng và kích hoạt Gemini AI phản hồi
      */
     public function send(Request $request): JsonResponse
     {
         $messageText = trim((string) ($request->input('message') ?? $request->input('content') ?? ''));
         $attachment = $this->processAttachment($request);
 
-        // Kiểm tra hợp lệ nội dung
         if (empty($messageText) && empty($attachment['url'])) {
             return response()->json([
                 'success' => false,
@@ -146,14 +145,10 @@ class ChatController extends Controller
         }
 
         $adminId = 1;
+        $promptText = !empty($messageText) ? $messageText : ($attachment['type'] === 'image' ? '[Hình ảnh]' : '[Tệp đính kèm]');
 
         try {
-            $promptText = $messageText;
-            if (empty($promptText) && !empty($attachment['url'])) {
-                $promptText = $attachment['type'] === 'image' ? '[Hình ảnh]' : '[Tệp đính kèm]';
-            }
-
-            // 1. Lưu tin nhắn của khách hàng vào database
+            // 1. Lưu tin nhắn người dùng
             $userMessage = Message::create([
                 'sender_id' => $senderId,
                 'receiver_id' => $adminId,
@@ -165,41 +160,26 @@ class ChatController extends Controller
                 'is_read' => false,
             ]);
 
-            // 2. Kích hoạt Gemini AI (Vision + Product Cards + Order Tracking)
-            $aiReplyText = 'Chào bạn! STRIKER có thể hỗ trợ gì cho bạn hôm nay?';
-            $suggestedProducts = [];
-            $orderTracking = null;
+            // 2. Kích hoạt phản hồi từ Gemini AI (Vision, Cards, Timeline đơn hàng)
+            $aiReply = $this->geminiService->generateReply(
+                $senderId,
+                $promptText,
+                $attachment['local_path'],
+                $attachment['mime']
+            );
 
-            try {
-                $aiResult = $this->geminiService->generateReply(
-                    $senderId,
-                    $promptText,
-                    $attachment['local_path'],
-                    $attachment['mime']
-                );
+            $metadata = array_filter([
+                'suggested_products' => !empty($aiReply['suggested_products']) ? $aiReply['suggested_products'] : null,
+                'order_tracking' => $aiReply['order_tracking'] ?? null,
+            ]);
 
-                $aiReplyText = $aiResult['text'] ?? $aiReplyText;
-                $suggestedProducts = $aiResult['suggested_products'] ?? [];
-                $orderTracking = $aiResult['order_tracking'] ?? null;
-            } catch (Throwable $aiEx) {
-                \Illuminate\Support\Facades\Log::warning('Lỗi khi gọi GeminiService: ' . $aiEx->getMessage());
-            }
-
-            $metadata = null;
-            if (!empty($suggestedProducts) || !empty($orderTracking)) {
-                $metadata = array_filter([
-                    'suggested_products' => !empty($suggestedProducts) ? $suggestedProducts : null,
-                    'order_tracking' => $orderTracking,
-                ]);
-            }
-
-            // 3. Lưu câu trả lời của AI vào database
+            // 3. Lưu tin nhắn phản hồi của AI
             $aiMessage = Message::create([
                 'sender_id' => $adminId,
                 'receiver_id' => $senderId,
-                'content' => $aiReplyText,
+                'content' => $aiReply['text'] ?? 'Chào bạn! STRIKER có thể hỗ trợ gì cho bạn hôm nay?',
                 'sender_type' => 'AI',
-                'metadata' => $metadata,
+                'metadata' => !empty($metadata) ? $metadata : null,
                 'is_read' => false,
             ]);
 
@@ -227,7 +207,7 @@ class ChatController extends Controller
                 ],
             ]);
         } catch (Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Lỗi gửi tin nhắn chat-service: ' . $e->getMessage());
+            Log::error('Lỗi gửi tin nhắn chat-service: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Không thể gửi tin nhắn: ' . $e->getMessage(),
@@ -250,31 +230,21 @@ class ChatController extends Controller
         }
 
         $adminId = 1;
+        $messages = Message::where(function ($q) use ($userId, $adminId) {
+                $q->where('sender_id', $userId)->where('receiver_id', $adminId);
+            })
+            ->orWhere(function ($q) use ($userId, $adminId) {
+                $q->where('sender_id', $adminId)->where('receiver_id', $userId);
+            })
+            ->orderBy('created_at', 'asc')
+            ->orderBy('id', 'asc')
+            ->get();
 
-        try {
-            $messages = Message::where(function ($q) use ($userId, $adminId) {
-                    $q->where('sender_id', $userId)->where('receiver_id', $adminId);
-                })
-                ->orWhere(function ($q) use ($userId, $adminId) {
-                    $q->where('sender_id', $adminId)->where('receiver_id', $userId);
-                })
-                ->orderBy('created_at', 'asc')
-                ->orderBy('id', 'asc')
-                ->get();
-
-            return response()->json([
-                'success' => true,
-                'message' => 'Lấy lịch sử tin nhắn thành công.',
-                'data' => $messages,
-            ]);
-        } catch (Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('Lỗi lấy tin nhắn chat-service: ' . $e->getMessage());
-            return response()->json([
-                'success' => true,
-                'message' => 'Lấy lịch sử tin nhắn thành công.',
-                'data' => [],
-            ]);
-        }
+        return response()->json([
+            'success' => true,
+            'message' => 'Lấy lịch sử tin nhắn thành công.',
+            'data' => $messages,
+        ]);
     }
 
     /**

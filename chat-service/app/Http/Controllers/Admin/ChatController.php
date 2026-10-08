@@ -51,13 +51,78 @@ class ChatController extends Controller
     }
 
     /**
-     * Lấy danh sách khách hàng đã nhắn tin kèm tin nhắn mới nhất và số tin chưa đọc (Tối ưu truy vấn SQL)
+     * Chuẩn hóa cấu trúc dữ liệu khách hàng gửi về frontend
+     */
+    private function formatCustomerUser(int $userId, mixed $user, int $adminId, ?int $unreadCount = null, ?Message $lastMsg = null): array
+    {
+        $name = is_array($user) ? ($user['name'] ?? null) : ($user->name ?? null);
+        $email = is_array($user) ? ($user['email'] ?? '') : ($user->email ?? '');
+        $phone = is_array($user) ? ($user['phone'] ?? ($user['phone_number'] ?? '')) : ($user->phone ?? ($user->phone_number ?? ''));
+        $role = is_array($user) ? ($user['role'] ?? 'customer') : ($user->role ?? 'customer');
+
+        if ($lastMsg === null) {
+            $lastMsg = Message::where(function ($q) use ($userId, $adminId) {
+                $q->where('sender_id', $userId)->where('receiver_id', $adminId);
+            })->orWhere(function ($q) use ($userId, $adminId) {
+                $q->where('sender_id', $adminId)->where('receiver_id', $userId);
+            })->orderByDesc('created_at')->first();
+        }
+
+        if ($unreadCount === null) {
+            $unreadCount = Message::where('sender_id', $userId)
+                ->where('receiver_id', $adminId)
+                ->where('is_read', false)
+                ->count();
+        }
+
+        return [
+            'id' => $userId,
+            'name' => $name ?: "Khách hàng #{$userId}",
+            'email' => $email,
+            'phone' => $phone,
+            'phone_number' => $phone,
+            'avatar' => null,
+            'role' => $role,
+            'last_message' => $lastMsg ? $lastMsg->content : '',
+            'last_message_time' => $lastMsg ? $lastMsg->created_at : null,
+            'unread_count' => (int) $unreadCount,
+        ];
+    }
+
+    /**
+     * Tra cứu thông tin 1 User từ Database hoặc Auth Microservice
+     */
+    private function findUser(int $userId): ?object
+    {
+        try {
+            $user = User::select('id', 'name', 'email', 'phone', 'role', 'created_at')->find($userId);
+            if ($user) {
+                return $user;
+            }
+        } catch (Throwable $e) {}
+
+        $authUrl = rtrim((string) config('services.microservices.auth', 'http://127.0.0.1:8001'), '/');
+        try {
+            $res = Http::timeout(2)->get("{$authUrl}/api/users/{$userId}");
+            if ($res->successful()) {
+                $userData = $res->json('data') ?? $res->json('user');
+                if ($userData) {
+                    return (object) $userData;
+                }
+            }
+        } catch (Throwable $ex) {}
+
+        return null;
+    }
+
+    /**
+     * Lấy danh sách khách hàng đã nhắn tin kèm tin nhắn mới nhất và số tin chưa đọc
      */
     public function getUsers(Request $request): JsonResponse
     {
         $adminId = $this->resolveAdminId($request);
 
-        // 1. Tìm tất cả ID khách hàng có tương tác với Admin/AI
+        // 1. Lấy danh sách ID khách hàng đã từng trò chuyện
         $userIds = Message::where(function ($q) use ($adminId) {
                 $q->where('receiver_id', $adminId)->where('sender_id', '!=', $adminId);
             })
@@ -80,13 +145,10 @@ class ChatController extends Controller
             ]);
         }
 
-        // 2. Lấy thông tin chi tiết khách hàng từ DB auth hoặc API fallback
+        // 2. Tra cứu thông tin User từ Database Auth hoặc fallback Microservice
         $usersMap = [];
         try {
-            $users = User::whereIn('id', $userIds)
-                ->where('role', '!=', 'admin')
-                ->select('id', 'name', 'email', 'phone', 'role', 'created_at')
-                ->get();
+            $users = User::whereIn('id', $userIds)->where('role', '!=', 'admin')->get();
             foreach ($users as $u) {
                 $usersMap[$u->id] = $u;
             }
@@ -97,14 +159,14 @@ class ChatController extends Controller
                 if ($res->successful() && is_array($res->json('data'))) {
                     foreach ($res->json('data') as $item) {
                         if (in_array((int)$item['id'], $userIds)) {
-                            $usersMap[$item['id']] = (object)$item;
+                            $usersMap[$item['id']] = (object) $item;
                         }
                     }
                 }
             } catch (Throwable $ex) {}
         }
 
-        // 3. Truy vấn gom nhóm số tin nhắn chưa đọc của từng user (Tránh N+1 query)
+        // 3. Gom nhóm số tin nhắn chưa đọc trong 1 truy vấn
         $unreadCounts = Message::whereIn('sender_id', $userIds)
             ->where('receiver_id', $adminId)
             ->where('is_read', false)
@@ -113,28 +175,14 @@ class ChatController extends Controller
             ->pluck('total', 'sender_id')
             ->toArray();
 
-        // 4. Định dạng dữ liệu hoàn chỉnh
+        // 4. Định dạng kết quả và sắp xếp theo tin nhắn mới nhất
         $usersWithDetails = collect($userIds)->map(function ($userId) use ($adminId, $usersMap, $unreadCounts) {
-            $user = $usersMap[$userId] ?? null;
-
-            $lastMsg = Message::where(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $userId)->where('receiver_id', $adminId);
-            })->orWhere(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $adminId)->where('receiver_id', $userId);
-            })->orderByDesc('created_at')->first();
-
-            return [
-                'id' => $userId,
-                'name' => $user ? ($user->name ?? "Khách hàng #{$userId}") : "Khách hàng #{$userId}",
-                'email' => $user ? ($user->email ?? '') : '',
-                'phone' => $user ? ($user->phone ?? ($user->phone_number ?? '')) : '',
-                'phone_number' => $user ? ($user->phone ?? ($user->phone_number ?? '')) : '',
-                'avatar' => null,
-                'role' => $user ? ($user->role ?? 'customer') : 'customer',
-                'last_message' => $lastMsg ? $lastMsg->content : '',
-                'last_message_time' => $lastMsg ? $lastMsg->created_at : null,
-                'unread_count' => (int) ($unreadCounts[$userId] ?? 0),
-            ];
+            return $this->formatCustomerUser(
+                $userId,
+                $usersMap[$userId] ?? null,
+                $adminId,
+                (int) ($unreadCounts[$userId] ?? 0)
+            );
         })->sortByDesc(fn ($item) => $item['last_message_time'] ? strtotime((string)$item['last_message_time']) : 0)->values();
 
         return response()->json([
@@ -163,7 +211,6 @@ class ChatController extends Controller
                             ->orWhere('phone', 'like', "%{$query}%");
                     });
                 })
-                ->select('id', 'name', 'email', 'phone', 'role', 'created_at')
                 ->limit(30)
                 ->get();
         } catch (Throwable $e) {
@@ -177,35 +224,8 @@ class ChatController extends Controller
         }
 
         $customersWithDetails = $customers->map(function ($user) use ($adminId) {
-            $userId = is_array($user) ? $user['id'] : $user->id;
-            $userName = is_array($user) ? $user['name'] : $user->name;
-            $userEmail = is_array($user) ? ($user['email'] ?? '') : ($user->email ?? '');
-            $userPhone = is_array($user) ? ($user['phone'] ?? ($user['phone_number'] ?? '')) : ($user->phone ?? '');
-            $userRole = is_array($user) ? ($user['role'] ?? 'customer') : ($user->role ?? 'customer');
-
-            $lastMsg = Message::where(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $userId)->where('receiver_id', $adminId);
-            })->orWhere(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $adminId)->where('receiver_id', $userId);
-            })->orderByDesc('created_at')->first();
-
-            $unreadCount = Message::where('sender_id', $userId)
-                ->where('receiver_id', $adminId)
-                ->where('is_read', false)
-                ->count();
-
-            return [
-                'id' => $userId,
-                'name' => $userName,
-                'email' => $userEmail,
-                'phone' => $userPhone,
-                'phone_number' => $userPhone,
-                'avatar' => null,
-                'role' => $userRole,
-                'last_message' => $lastMsg ? $lastMsg->content : '',
-                'last_message_time' => $lastMsg ? $lastMsg->created_at : null,
-                'unread_count' => $unreadCount,
-            ];
+            $userId = is_array($user) ? (int)$user['id'] : (int)$user->id;
+            return $this->formatCustomerUser($userId, $user, $adminId);
         });
 
         return response()->json([
@@ -220,22 +240,7 @@ class ChatController extends Controller
      */
     public function getUserDetail(Request $request, $userId): JsonResponse
     {
-        $user = null;
-        try {
-            $user = User::select('id', 'name', 'email', 'phone', 'role', 'created_at')->find($userId);
-        } catch (Throwable $e) {}
-
-        if (!$user) {
-            $authUrl = rtrim((string) config('services.microservices.auth', 'http://127.0.0.1:8001'), '/');
-            try {
-                $response = Http::timeout(2)->get("{$authUrl}/api/users/{$userId}");
-                if ($response->successful()) {
-                    $userData = $response->json('data') ?? $response->json('user');
-                    if ($userData) $user = (object)$userData;
-                }
-            } catch (Throwable $ex) {}
-        }
-
+        $user = $this->findUser((int) $userId);
         if (!$user) {
             return response()->json([
                 'success' => false,
@@ -244,26 +249,9 @@ class ChatController extends Controller
         }
 
         $adminId = $this->resolveAdminId($request);
-        $lastMsg = Message::where(function ($q) use ($userId, $adminId) {
-            $q->where('sender_id', $userId)->where('receiver_id', $adminId);
-        })->orWhere(function ($q) use ($userId, $adminId) {
-            $q->where('sender_id', $adminId)->where('receiver_id', $userId);
-        })->orderByDesc('created_at')->first();
-
         return response()->json([
             'success' => true,
-            'data' => [
-                'id' => is_array($user) ? $user['id'] : $user->id,
-                'name' => is_array($user) ? $user['name'] : $user->name,
-                'email' => is_array($user) ? ($user['email'] ?? '') : ($user->email ?? ''),
-                'phone' => is_array($user) ? ($user['phone'] ?? ($user['phone_number'] ?? '')) : ($user->phone ?? ''),
-                'phone_number' => is_array($user) ? ($user['phone'] ?? ($user['phone_number'] ?? '')) : ($user->phone ?? ''),
-                'avatar' => null,
-                'role' => is_array($user) ? ($user['role'] ?? 'customer') : ($user->role ?? 'customer'),
-                'last_message' => $lastMsg ? $lastMsg->content : '',
-                'last_message_time' => $lastMsg ? $lastMsg->created_at : null,
-                'unread_count' => 0,
-            ],
+            'data' => $this->formatCustomerUser((int) $userId, $user, $adminId, 0),
         ]);
     }
 
@@ -317,14 +305,14 @@ class ChatController extends Controller
             $file = $request->file('file');
             $fileName = time() . '_' . preg_replace('/[^a-zA-Z0-9._-]/', '', $file->getClientOriginalName());
             $destinationPath = public_path('uploads/chat');
-            if (!file_exists($destinationPath)) {
+            if (!is_dir($destinationPath)) {
                 mkdir($destinationPath, 0777, true);
             }
             $file->move($destinationPath, $fileName);
             $attachmentUrl = '/uploads/chat/' . $fileName;
             $attachmentName = $file->getClientOriginalName();
             $mime = $file->getClientMimeType();
-            $attachmentType = str_starts_with($mime, 'image/') ? 'image' : 'file';
+            $attachmentType = str_starts_with((string) $mime, 'image/') ? 'image' : 'file';
         }
 
         if (empty($content) && empty($attachmentUrl)) {
@@ -335,7 +323,7 @@ class ChatController extends Controller
         }
 
         $adminId = $this->resolveAdminId($request);
-        $targetUserId = (int)$request->input('user_id');
+        $targetUserId = (int) $request->input('user_id');
 
         $message = Message::create([
             'sender_id' => $adminId,
@@ -418,14 +406,19 @@ class ChatController extends Controller
     {
         $feedbacks = ChatFeedback::orderByDesc('created_at')->limit(50)->get();
         $total = ChatFeedback::count();
-        $avg = $total > 0 ? round((float)ChatFeedback::avg('rating'), 1) : 5.0;
+        $avg = $total > 0 ? round((float) ChatFeedback::avg('rating'), 1) : 5.0;
+
+        $grouped = ChatFeedback::select('rating', DB::raw('count(*) as total'))
+            ->groupBy('rating')
+            ->pluck('total', 'rating')
+            ->toArray();
 
         $ratingCounts = [
-            5 => ChatFeedback::where('rating', 5)->count(),
-            4 => ChatFeedback::where('rating', 4)->count(),
-            3 => ChatFeedback::where('rating', 3)->count(),
-            2 => ChatFeedback::where('rating', 2)->count(),
-            1 => ChatFeedback::where('rating', 1)->count(),
+            5 => (int) ($grouped[5] ?? 0),
+            4 => (int) ($grouped[4] ?? 0),
+            3 => (int) ($grouped[3] ?? 0),
+            2 => (int) ($grouped[2] ?? 0),
+            1 => (int) ($grouped[1] ?? 0),
         ];
 
         return response()->json([
