@@ -11,14 +11,11 @@ import {
   Truck,
   Clock,
   XCircle,
-  AlertCircle,
-  Undo2,
   PhoneCall,
   Package
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchAdminOrders } from '../../services/orders';
-import api from '../../services/api';
 
 // 2 Phương thức thanh toán chính thức
 const METHODS: Record<'cod' | 'momo', { label: string; badgeBg: string }> = {
@@ -46,24 +43,15 @@ interface RawOrder {
   status?: string;
   created_at?: string;
   note?: string;
-  refund_reason?: string;
   calculated_gateway: 'cod' | 'momo';
   calculated_status: string;
   is_paid: boolean;
-  is_refund_pending: boolean;
-  is_refunded: boolean;
 }
 
 export const Finance: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'summary' | 'transactions'>('summary');
   const [orders, setOrders] = useState<RawOrder[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-
-  // State quản lý Modal Hoàn tiền / Trả hàng
-  const [refundModalOrder, setRefundModalOrder] = useState<RawOrder | null>(null);
-  const [refundActionType, setRefundActionType] = useState<'refund_pending' | 'refunded' | 'restore'>('refund_pending');
-  const [refundNote, setRefundNote] = useState<string>('');
-  const [isSubmittingRefund, setIsSubmittingRefund] = useState<boolean>(false);
 
   // Bộ lọc tài chính thực tế
   const [filters, setFilters] = useState({
@@ -108,44 +96,28 @@ export const Finance: React.FC = () => {
 
       let ordStatus = 'pending';
       let isPaid = false;
-      let isRefundPending = false;
-      let isRefunded = false;
 
-      // 1. Nếu đã hoàn tiền
-      if (rawPay === 'refunded' || rawOrd === 'refunded') {
-        ordStatus = 'refunded';
-        isRefunded = true;
+      // 1. Nếu đơn bị hủy
+      if (rawOrd === 'cancelled' || rawOrd === 'cancel') {
+        ordStatus = 'cancelled';
+        isPaid = false;
       } 
-      // 2. Nếu đơn bị hủy
-      else if (rawOrd === 'cancelled' || rawOrd === 'cancel') {
-        if (rawPay === 'paid' && gateway === 'momo') {
-          ordStatus = 'refund_pending';
-          isRefundPending = true;
-        } else {
-          ordStatus = 'cancelled';
-        }
-      } 
-      // 3. Nếu đang chờ hoàn tiền / trả hàng
-      else if (rawOrd === 'refund_pending' || rawPay === 'refund_pending') {
-        ordStatus = 'refund_pending';
-        isRefundPending = true;
-      }
-      // 4. Đã giao hàng thành công (Thực thu)
+      // 2. Đã giao hàng thành công (Thực thu)
       else if (rawOrd === 'delivered') {
         ordStatus = 'delivered';
         isPaid = true;
       } 
-      // 5. Đang giao hàng
+      // 3. Đang giao hàng
       else if (rawOrd === 'shipping') {
         ordStatus = 'shipping';
         isPaid = (gateway === 'momo' && rawPay === 'paid');
       } 
-      // 6. Đang đóng gói / lấy hàng
+      // 4. Đang đóng gói / lấy hàng
       else if (rawOrd === 'processing') {
         ordStatus = 'processing';
         isPaid = (gateway === 'momo' && rawPay === 'paid');
       } 
-      // 7. Chờ xử lý
+      // 5. Chờ xử lý
       else {
         ordStatus = 'pending';
         isPaid = (gateway === 'momo' && rawPay === 'paid');
@@ -156,8 +128,6 @@ export const Finance: React.FC = () => {
         calculated_gateway: gateway,
         calculated_status: ordStatus,
         is_paid: isPaid,
-        is_refund_pending: isRefundPending,
-        is_refunded: isRefunded,
       };
     });
   }, [orders]);
@@ -236,12 +206,6 @@ export const Finance: React.FC = () => {
     let totalVoucherDiscounts = 0;
     let totalShippingFees = 0;
 
-    let totalRefundedAmount = 0;
-    let refundedCount = 0;
-
-    let refundPendingRevenue = 0;
-    let refundPendingCount = 0;
-
     let shippingRevenue = 0;
     let shippingCount = 0;
 
@@ -252,8 +216,8 @@ export const Finance: React.FC = () => {
     let cancelledCount = 0;
 
     const methodBreakdown = {
-      cod: { totalCount: 0, totalGross: 0, deliveredCount: 0, deliveredAmount: 0, refundedCount: 0, refundedAmount: 0, shippingCount: 0, shippingAmount: 0, cancelledCount: 0, cancelledAmount: 0 },
-      momo: { totalCount: 0, totalGross: 0, deliveredCount: 0, deliveredAmount: 0, refundedCount: 0, refundedAmount: 0, pendingCount: 0, pendingAmount: 0, refundPendingCount: 0, refundPendingAmount: 0, cancelledCount: 0, cancelledAmount: 0 },
+      cod: { totalCount: 0, totalGross: 0, deliveredCount: 0, deliveredAmount: 0, shippingCount: 0, shippingAmount: 0, cancelledCount: 0, cancelledAmount: 0 },
+      momo: { totalCount: 0, totalGross: 0, deliveredCount: 0, deliveredAmount: 0, pendingCount: 0, pendingAmount: 0, cancelledCount: 0, cancelledAmount: 0 },
     };
 
     filteredOrders.forEach(o => {
@@ -275,18 +239,6 @@ export const Finance: React.FC = () => {
         totalShippingFees += ship;
         methodBreakdown[gw].deliveredCount += 1;
         methodBreakdown[gw].deliveredAmount += amt;
-      } else if (st === 'refunded') {
-        totalRefundedAmount += amt;
-        refundedCount += 1;
-        methodBreakdown[gw].refundedCount += 1;
-        methodBreakdown[gw].refundedAmount += amt;
-      } else if (st === 'refund_pending') {
-        refundPendingRevenue += amt;
-        refundPendingCount += 1;
-        if (gw === 'momo') {
-          methodBreakdown.momo.refundPendingCount += 1;
-          methodBreakdown.momo.refundPendingAmount += amt;
-        }
       } else if (st === 'shipping') {
         shippingRevenue += amt;
         shippingCount += 1;
@@ -309,7 +261,7 @@ export const Finance: React.FC = () => {
       }
     });
 
-    const netRevenue = Math.max(0, grossDeliveredRevenue - totalRefundedAmount);
+    const netRevenue = grossDeliveredRevenue;
 
     return {
       totalCount,
@@ -319,11 +271,7 @@ export const Finance: React.FC = () => {
       totalDeliveredSubtotal,
       totalVoucherDiscounts,
       totalShippingFees,
-      totalRefundedAmount,
-      refundedCount,
       netRevenue,
-      refundPendingRevenue,
-      refundPendingCount,
       shippingRevenue,
       shippingCount,
       pendingRevenue,
@@ -333,57 +281,6 @@ export const Finance: React.FC = () => {
       methodBreakdown,
     };
   }, [filteredOrders]);
-
-  // Xử lý Cập nhật Hoàn tiền / Trả hàng
-  const handleProcessRefund = async () => {
-    if (!refundModalOrder) return;
-
-    try {
-      setIsSubmittingRefund(true);
-      let payload: Record<string, any> = {};
-
-      const noteToSave = refundNote.trim();
-
-      if (refundActionType === 'refunded') {
-        payload = { 
-          payment_status: 'refunded',
-          note: noteToSave || undefined,
-        };
-      } else if (refundActionType === 'refund_pending') {
-        payload = { 
-          payment_status: 'refund_pending',
-          note: noteToSave || undefined,
-        };
-      } else {
-        payload = { 
-          payment_status: 'paid',
-          note: noteToSave || undefined,
-        };
-      }
-
-      await api.patch(`/orders/${refundModalOrder.id}/status`, payload);
-
-      // Cập nhật state local ngay lập tức mà không làm mất trạng thái delivered
-      setOrders(prev => prev.map(o => {
-        if (o.id === refundModalOrder.id) {
-          return {
-            ...o,
-            payment_status: payload.payment_status || o.payment_status,
-            note: noteToSave || o.note,
-          };
-        }
-        return o;
-      }));
-
-      toast.success(`Đã lưu đối soát và cập nhật đơn #${refundModalOrder.id} thành công!`);
-      setRefundModalOrder(null);
-      setRefundNote('');
-    } catch (err: any) {
-      toast.error(err?.response?.data?.message || 'Không thể cập nhật trạng thái hoàn tiền');
-    } finally {
-      setIsSubmittingRefund(false);
-    }
-  };
 
   // Reset bộ lọc
   const handleResetFilters = () => {
@@ -411,7 +308,7 @@ export const Finance: React.FC = () => {
             </div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl sm:text-2xl font-black italic tracking-wider text-white">
-                BÁO CÁO TÀI CHÍNH & ĐỐI SOÁT
+                BÁO CÁO TÀI CHÍNH & DOANH THU
               </h1>
               <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-lime-400/20 text-lime-400 border border-lime-400/30">
                 FINANCE
@@ -419,7 +316,7 @@ export const Finance: React.FC = () => {
             </div>
           </div>
           <p className="text-xs text-slate-400">
-            Quản lý doanh thu thuần thực nhận, theo dõi dòng tiền COD và xử lý Trả hàng / Hoàn tiền
+            Quản lý doanh thu thực nhận, theo dõi dòng tiền COD và trạng thái thanh toán MoMo
           </p>
         </div>
 
@@ -517,8 +414,6 @@ export const Finance: React.FC = () => {
               <option value="shipping">Đang giao (GHN)</option>
               <option value="processing">Chờ lấy hàng</option>
               <option value="pending">Chờ xử lý</option>
-              <option value="refund_pending">Chờ hoàn tiền / Trả hàng</option>
-              <option value="refunded">Đã hoàn tiền</option>
               <option value="cancelled">Đã hủy đơn</option>
             </select>
           </div>
@@ -556,43 +451,43 @@ export const Finance: React.FC = () => {
       {/* NỘI DUNG TAB 1: THỐNG KÊ CHỈ SỐ TÀI CHÍNH */}
       {activeTab === 'summary' && (
         <div className="space-y-6">
-          {/* Card Highlight: DOANH THU THUẦN (NET REVENUE) */}
+          {/* Card Highlight: DOANH THU THỰC NHẬN */}
           <div className="p-5 sm:p-6 rounded-2xl bg-gradient-to-br from-lime-950/40 via-slate-900 to-slate-950 border border-lime-400/40 shadow-xl relative overflow-hidden group">
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
               <div className="space-y-1.5">
                 <div className="flex items-center gap-2">
                   <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black bg-lime-400 text-slate-950 uppercase tracking-wider">
-                    DOANH THU
+                    DOANH THU THỰC NHẬN
                   </span>
-                  <span className="text-[11px] text-slate-400">= Doanh thu gộp – Tiền hoàn trả</span>
+                  <span className="text-[11px] text-slate-400">Tổng tiền các đơn giao thành công</span>
                 </div>
                 <div className="text-3xl sm:text-4xl font-black text-lime-400 tracking-tight">
-                  {summaryStats.netRevenue.toLocaleString('vi-VN')} đ
+                  {summaryStats.grossDeliveredRevenue.toLocaleString('vi-VN')} đ
                 </div>
                 <p className="text-xs text-slate-300">
-                  Số tiền thực nhận sau khi đối soát toàn bộ đơn hoàn tất và trừ các khoản hoàn trả cho khách
+                  Số tiền thực tế cửa hàng đã thu từ các đơn hàng giao thành công
                 </p>
               </div>
 
-              {/* 2 Khối Đối Chiếu Trực Quan */}
-              <div className="flex items-center gap-3 bg-slate-950/80 p-3 sm:p-4 rounded-xl border border-slate-800/80 shadow-inner">
-                <div className="px-3 border-r border-slate-800/80 text-left">
-                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Doanh thu gộp</div>
+              {/* Khối Đối Chiếu Trực Quan */}
+              <div className="flex items-center gap-4 bg-slate-950/80 p-3 sm:p-4 rounded-xl border border-slate-800/80 shadow-inner">
+                <div className="px-3 text-left">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Đơn hàng hoàn tất</div>
                   <div className="text-base sm:text-lg font-black text-white mt-0.5">
-                    {summaryStats.grossDeliveredRevenue.toLocaleString('vi-VN')} đ
+                    {summaryStats.deliveredCount} đơn
                   </div>
                   <div className="text-[10px] text-lime-400 font-semibold mt-0.5 flex items-center gap-1">
-                    <CheckCircle2 className="w-3 h-3 inline" /> {summaryStats.deliveredCount} đơn giao thành công
+                    <CheckCircle2 className="w-3 h-3 inline" /> Tỷ lệ hoàn thành: {summaryStats.totalCount > 0 ? Math.round((summaryStats.deliveredCount / summaryStats.totalCount) * 100) : 0}%
                   </div>
                 </div>
 
-                <div className="px-3 text-left">
-                  <div className="text-[10px] font-bold text-rose-400 uppercase tracking-wider">Tiền đã hoàn trả</div>
-                  <div className="text-base sm:text-lg font-black text-rose-400 mt-0.5">
-                    - {summaryStats.totalRefundedAmount.toLocaleString('vi-VN')} đ
+                <div className="px-3 border-l border-slate-800/80 text-left">
+                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tổng giá trị đơn tạo</div>
+                  <div className="text-base sm:text-lg font-black text-slate-300 mt-0.5">
+                    {summaryStats.totalGrossAmount.toLocaleString('vi-VN')} đ
                   </div>
-                  <div className="text-[10px] text-slate-400 font-medium mt-0.5">
-                    {summaryStats.refundedCount} đơn đã hoàn tiền
+                  <div className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    {summaryStats.totalCount} đơn trong bộ lọc
                   </div>
                 </div>
               </div>
@@ -601,7 +496,20 @@ export const Finance: React.FC = () => {
 
           {/* 3 Thẻ Dòng Tiền Tồn Đọng & Đang Xử Lý */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {/* Card 1: Tiền hàng đang giao (GHN) */}
+            {/* Card 1: Tiền hàng đã giao thành công */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-emerald-950/30 via-slate-900 to-slate-900 border border-emerald-500/30 shadow-md">
+              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-emerald-400 mb-1.5">
+                <CheckCircle2 className="w-4 h-4" /> Đã giao (Thực thu)
+              </div>
+              <div className="text-xl sm:text-2xl font-black text-emerald-400 tracking-tight">
+                {summaryStats.grossDeliveredRevenue.toLocaleString('vi-VN')} đ
+              </div>
+              <p className="text-xs text-slate-400 mt-1">
+                {summaryStats.deliveredCount} đơn hàng giao thành công
+              </p>
+            </div>
+
+            {/* Card 2: Tiền hàng đang giao (GHN) */}
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-sky-950/30 via-slate-900 to-slate-900 border border-sky-500/30 shadow-md">
               <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-sky-400 mb-1.5">
                 <Truck className="w-4 h-4" /> Tiền đơn đang giao
@@ -614,7 +522,7 @@ export const Finance: React.FC = () => {
               </p>
             </div>
 
-            {/* Card 2: Tiền hàng chờ xử lý */}
+            {/* Card 3: Tiền hàng chờ xử lý */}
             <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-amber-950/30 via-slate-900 to-slate-900 border border-amber-500/30 shadow-md">
               <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-400 mb-1.5">
                 <Clock className="w-4 h-4" /> Tiền đơn chờ xử lý
@@ -626,19 +534,6 @@ export const Finance: React.FC = () => {
                 {summaryStats.pendingCount} đơn hàng mới đặt chờ đóng gói
               </p>
             </div>
-
-            {/* Card 3: Chờ hoàn tiền */}
-            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-br from-rose-950/30 via-slate-900 to-slate-900 border border-rose-500/30 shadow-md">
-              <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-rose-400 mb-1.5">
-                <AlertCircle className="w-4 h-4" /> Tiền chờ hoàn trả khách
-              </div>
-              <div className="text-xl sm:text-2xl font-black text-rose-400 tracking-tight">
-                {summaryStats.refundPendingRevenue.toLocaleString('vi-VN')} đ
-              </div>
-              <p className="text-xs text-rose-400/80 mt-1">
-                {summaryStats.refundPendingCount} đơn thanh toán online chờ hoàn tiền
-              </p>
-            </div>
           </div>
 
           {/* Bảng Thống kê Kênh thanh toán Tinh Gọn */}
@@ -647,7 +542,7 @@ export const Finance: React.FC = () => {
               <div className="flex items-center gap-2">
                 <Wallet className="w-4 h-4 text-lime-400" /> Báo cáo doanh thu & dòng tiền theo kênh
               </div>
-              <span className="text-[11px] text-slate-400 font-normal">Hạch toán thực thu và hoàn trả</span>
+              <span className="text-[11px] text-slate-400 font-normal">Hạch toán thực thu theo từng phương thức</span>
             </div>
 
             <div className="overflow-x-auto">
@@ -657,10 +552,9 @@ export const Finance: React.FC = () => {
                     <th className="px-4 py-3">Kênh thanh toán</th>
                     <th className="px-4 py-3 text-right">Tổng đơn</th>
                     <th className="px-4 py-3 text-right">Tổng giá trị</th>
-                    <th className="px-4 py-3 text-right">Hoàn tất</th>
-                    <th className="px-4 py-3 text-right">Doanh thu Gộp</th>
-                    <th className="px-4 py-3 text-right">Tiền đã hoàn</th>
-                    <th className="px-4 py-3 text-right">Doanh thu Thuần</th>
+                    <th className="px-4 py-3 text-right">Đã hoàn tất</th>
+                    <th className="px-4 py-3 text-right">Đã hủy</th>
+                    <th className="px-4 py-3 text-right">Doanh thu Thực nhận</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 text-slate-300">
@@ -677,16 +571,11 @@ export const Finance: React.FC = () => {
                     <td className="px-4 py-3 text-right font-bold text-emerald-400">
                       {summaryStats.methodBreakdown.cod.deliveredCount} đơn
                     </td>
-                    <td className="px-4 py-3 text-right font-black text-white">
-                      {summaryStats.methodBreakdown.cod.deliveredAmount.toLocaleString('vi-VN')} đ
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-purple-400">
-                      {summaryStats.methodBreakdown.cod.refundedAmount > 0 
-                        ? `${summaryStats.methodBreakdown.cod.refundedAmount.toLocaleString('vi-VN')} đ` 
-                        : '—'}
+                    <td className="px-4 py-3 text-right font-medium text-slate-500">
+                      {summaryStats.methodBreakdown.cod.cancelledCount} đơn
                     </td>
                     <td className="px-4 py-3 text-right font-black text-lime-400">
-                      {(summaryStats.methodBreakdown.cod.deliveredAmount - summaryStats.methodBreakdown.cod.refundedAmount).toLocaleString('vi-VN')} đ
+                      {summaryStats.methodBreakdown.cod.deliveredAmount.toLocaleString('vi-VN')} đ
                     </td>
                   </tr>
 
@@ -703,16 +592,11 @@ export const Finance: React.FC = () => {
                     <td className="px-4 py-3 text-right font-bold text-emerald-400">
                       {summaryStats.methodBreakdown.momo.deliveredCount} đơn
                     </td>
-                    <td className="px-4 py-3 text-right font-black text-white">
-                      {summaryStats.methodBreakdown.momo.deliveredAmount.toLocaleString('vi-VN')} đ
-                    </td>
-                    <td className="px-4 py-3 text-right font-semibold text-purple-400">
-                      {summaryStats.methodBreakdown.momo.refundedAmount > 0 
-                        ? `${summaryStats.methodBreakdown.momo.refundedAmount.toLocaleString('vi-VN')} đ` 
-                        : '—'}
+                    <td className="px-4 py-3 text-right font-medium text-slate-500">
+                      {summaryStats.methodBreakdown.momo.cancelledCount} đơn
                     </td>
                     <td className="px-4 py-3 text-right font-black text-lime-400">
-                      {(summaryStats.methodBreakdown.momo.deliveredAmount - summaryStats.methodBreakdown.momo.refundedAmount).toLocaleString('vi-VN')} đ
+                      {summaryStats.methodBreakdown.momo.deliveredAmount.toLocaleString('vi-VN')} đ
                     </td>
                   </tr>
                 </tbody>
@@ -722,7 +606,7 @@ export const Finance: React.FC = () => {
         </div>
       )}
 
-      {/* NỘI DUNG TAB 2: DANH SÁCH GIAO DỊCH (TINH GỌN 5 CỘT VỪA KHÍT MÀN HÌNH) */}
+      {/* NỘI DUNG TAB 2: DANH SÁCH GIAO DỊCH */}
       {activeTab === 'transactions' && (
         <div className="rounded-2xl bg-slate-900 border border-slate-800 overflow-hidden shadow-xl space-y-3">
           <div className="px-5 py-3.5 border-b border-slate-800 font-bold text-xs sm:text-sm text-white flex items-center justify-between">
@@ -730,7 +614,7 @@ export const Finance: React.FC = () => {
               <CreditCard className="w-4 h-4 text-lime-400" /> Danh sách giao dịch chi tiết ({filteredOrders.length} đơn)
             </div>
             <span className="text-[11px] text-slate-400 font-normal hidden md:inline">
-              Xử lý Trả hàng & Hoàn tiền khi khách liên hệ
+              Theo dõi dòng tiền và trạng thái thanh toán
             </span>
           </div>
 
@@ -738,24 +622,21 @@ export const Finance: React.FC = () => {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-950/70 uppercase tracking-wider text-slate-400 border-b border-slate-800">
                 <tr>
-                  <th className="px-4 py-3 w-[22%]">Mã Đơn hàng</th>
-                  <th className="px-4 py-3 w-[24%]">Khách hàng</th>
-                  <th className="px-4 py-3 w-[20%]">Tổng tiền & Kênh</th>
-                  <th className="px-4 py-3 w-[20%]">Trạng thái & Thanh toán</th>
-                  <th className="px-4 py-3 w-[14%] text-right">Thao tác</th>
+                  <th className="px-4 py-3 w-[25%]">Mã Đơn hàng</th>
+                  <th className="px-4 py-3 w-[25%]">Khách hàng</th>
+                  <th className="px-4 py-3 w-[25%]">Tổng tiền & Kênh</th>
+                  <th className="px-4 py-3 w-[25%] text-right">Trạng thái & Thanh toán</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60 text-slate-300">
                 {filteredOrders.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                    <td colSpan={4} className="px-4 py-10 text-center text-slate-500">
                       Không có đơn hàng nào phù hợp với bộ lọc hiện tại.
                     </td>
                   </tr>
                 ) : (
                   filteredOrders.map(order => {
-                    const canRefund = order.calculated_status === 'delivered' && !order.is_refunded && !order.is_refund_pending;
-
                     return (
                       <tr key={order.id} className="hover:bg-slate-800/40 transition">
                         {/* 1. Mã đơn & Thời gian */}
@@ -795,17 +676,9 @@ export const Finance: React.FC = () => {
                         </td>
 
                         {/* 4. Trạng thái & Dòng tiền */}
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 text-right">
                           <div>
-                            {order.is_refund_pending ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/30 animate-pulse">
-                                <AlertCircle className="w-3 h-3" /> Chờ hoàn tiền
-                              </span>
-                            ) : order.is_refunded ? (
-                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-purple-500/10 text-purple-400 border border-purple-500/30">
-                                <CheckCircle2 className="w-3 h-3" /> Đã hoàn tiền
-                              </span>
-                            ) : order.calculated_status === 'delivered' ? (
+                            {order.calculated_status === 'delivered' ? (
                               <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/30">
                                 <CheckCircle2 className="w-3 h-3" /> Đã thanh toán (Thực thu)
                               </span>
@@ -831,45 +704,6 @@ export const Finance: React.FC = () => {
                               </span>
                             )}
                           </div>
-                          {/* Ghi chú đối soát chỉ hiển thị cho các đơn hoàn trả / đang xử lý hoàn tiền */}
-                          {(order.is_refunded || order.is_refund_pending) && order.note && (
-                            <div className="text-[11px] text-purple-300 font-medium mt-1 truncate max-w-[240px] flex items-center gap-1" title={order.note}>
-                              <span className="text-purple-400 font-bold">📝 Đối soát:</span> {order.note}
-                            </div>
-                          )}
-                        </td>
-
-                        {/* 5. Nút Thao Tác Gọn Gàng */}
-                        <td className="px-4 py-3 text-right whitespace-nowrap">
-                          {order.is_refunded ? (
-                            <span className="inline-flex items-center gap-1 text-slate-500 text-[11px] font-semibold">
-                              <CheckCircle2 className="w-3 h-3 text-purple-400" /> Đã chốt hoàn
-                            </span>
-                          ) : order.is_refund_pending ? (
-                            <button
-                              onClick={() => {
-                                setRefundModalOrder(order);
-                                setRefundActionType('refunded');
-                                setRefundNote(order.note || '');
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 text-rose-300 text-[11px] font-bold border border-rose-500/40 transition inline-flex items-center gap-1 shadow-sm"
-                            >
-                              <CheckCircle2 className="w-3 h-3" /> Xác nhận đã hoàn
-                            </button>
-                          ) : canRefund ? (
-                            <button
-                              onClick={() => {
-                                setRefundModalOrder(order);
-                                setRefundActionType('refund_pending');
-                                setRefundNote(order.is_refunded || order.is_refund_pending ? (order.note || '') : '');
-                              }}
-                              className="px-2.5 py-1 rounded-lg bg-slate-800/80 hover:bg-rose-950/40 hover:text-rose-300 text-slate-300 text-[11px] font-semibold border border-slate-700 hover:border-rose-500/40 transition inline-flex items-center gap-1"
-                            >
-                              <Undo2 className="w-3 h-3 text-rose-400" /> Trả hàng
-                            </button>
-                          ) : (
-                            <span className="text-slate-600 text-[11px]">—</span>
-                          )}
                         </td>
                       </tr>
                     );
@@ -877,167 +711,6 @@ export const Finance: React.FC = () => {
                 )}
               </tbody>
             </table>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL XỬ LÝ TRẢ HÀNG & HOÀN TIỀN */}
-      {refundModalOrder && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-slate-900 border border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl space-y-5 p-6">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3.5">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400">
-                  <Undo2 className="w-4 h-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-black text-white">
-                    {refundModalOrder.is_refund_pending ? 'Xác nhận Hoàn tiền' : 'Xử lý Trả hàng & Hoàn tiền'}
-                  </h3>
-                  <p className="text-[11px] text-slate-400">
-                    Đơn hàng #{refundModalOrder.id} ({refundModalOrder.order_code || '—'})
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setRefundModalOrder(null)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
-              >
-                <XCircle className="w-5 h-5" />
-              </button>
-            </div>
-
-            {/* Thông tin tóm tắt */}
-            <div className="bg-slate-950 p-3.5 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
-              <div className="flex justify-between">
-                <span className="text-slate-400">Khách hàng:</span>
-                <span className="font-bold text-white">{refundModalOrder.shipping_name || refundModalOrder.user?.name || 'Khách vãng lai'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Số điện thoại:</span>
-                <span className="font-bold text-white">{refundModalOrder.shipping_phone || refundModalOrder.phone || '—'}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-slate-400">Kênh thanh toán:</span>
-                <span className="font-bold text-pink-400">{refundModalOrder.calculated_gateway === 'momo' ? 'MoMo AIO' : 'COD Tiền mặt'}</span>
-              </div>
-              <div className="flex justify-between border-t border-slate-800 pt-2">
-                <span className="text-slate-300 font-semibold">Số tiền xử lý:</span>
-                <span className="text-sm font-black text-lime-400">
-                  {Number(refundModalOrder.total_amount ?? refundModalOrder.total_price ?? 0).toLocaleString('vi-VN')} đ
-                </span>
-              </div>
-            </div>
-
-            {/* Chọn hành động phù hợp theo trạng thái hiện tại */}
-            <div className="space-y-2.5">
-              <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider">
-                Hành động cập nhật
-              </label>
-              
-              <div className="space-y-2">
-                {/* Nếu đơn đang bình thường (delivered) -> Cho chọn Chờ hoàn tiền hoặc Hoàn tiền luôn */}
-                {!refundModalOrder.is_refund_pending && (
-                  <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
-                    refundActionType === 'refund_pending' 
-                      ? 'bg-rose-500/10 border-rose-500/40 text-white' 
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="refundAction"
-                      value="refund_pending"
-                      checked={refundActionType === 'refund_pending'}
-                      onChange={() => setRefundActionType('refund_pending')}
-                      className="mt-0.5"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-rose-400">Tiếp nhận yêu cầu trả hàng (Chờ hoàn tiền)</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">Khách liên hệ trả hàng, ghi nhận chờ nhận lại hàng và chuẩn bị hoàn tiền</div>
-                    </div>
-                  </label>
-                )}
-
-                {/* Luôn cho chọn Đã hoàn tiền khi chuyển khoản xong */}
-                <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
-                  refundActionType === 'refunded' 
-                    ? 'bg-purple-500/10 border-purple-500/40 text-white' 
-                    : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                }`}>
-                  <input
-                    type="radio"
-                    name="refundAction"
-                    value="refunded"
-                    checked={refundActionType === 'refunded'}
-                    onChange={() => setRefundActionType('refunded')}
-                    className="mt-0.5"
-                  />
-                  <div>
-                    <div className="text-xs font-bold text-purple-400">Xác nhận ĐÃ HOÀN TIỀN (Đã chuyển khoản)</div>
-                    <div className="text-[11px] text-slate-400 mt-0.5">Đã chuyển khoản trả tiền cho khách. Chốt sổ và tự động trừ khỏi Doanh thu thuần.</div>
-                  </div>
-                </label>
-
-                {/* Nếu đơn đang ở trạng thái Chờ hoàn tiền -> Có thêm nút Hủy yêu cầu (Khách giữ lại hàng) */}
-                {refundModalOrder.is_refund_pending && (
-                  <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition ${
-                    refundActionType === 'restore' 
-                      ? 'bg-emerald-500/10 border-emerald-500/40 text-white' 
-                      : 'bg-slate-950/60 border-slate-800 text-slate-400 hover:border-slate-700'
-                  }`}>
-                    <input
-                      type="radio"
-                      name="refundAction"
-                      value="restore"
-                      checked={refundActionType === 'restore'}
-                      onChange={() => setRefundActionType('restore')}
-                      className="mt-0.5"
-                    />
-                    <div>
-                      <div className="text-xs font-bold text-emerald-400">Hủy yêu cầu trả hàng (Khách giữ lại hàng)</div>
-                      <div className="text-[11px] text-slate-400 mt-0.5">Khách đổi ý không trả hàng nữa, đưa đơn về trạng thái Đã thanh toán bình thường</div>
-                    </div>
-                  </label>
-                )}
-              </div>
-            </div>
-
-            {/* Ghi chú đối soát */}
-            <div className="space-y-1">
-              <label className="block text-xs font-semibold text-slate-300">Ghi chú đối soát (Tùy chọn)</label>
-              <input
-                type="text"
-                placeholder="VD: Khách gọi đổi size / Đã hoàn qua MoMo ngày 28/09..."
-                value={refundNote}
-                onChange={e => setRefundNote(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white text-xs focus:border-lime-400 outline-none transition"
-              />
-            </div>
-
-            {/* Actions */}
-            <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-800">
-              <button
-                type="button"
-                onClick={() => setRefundModalOrder(null)}
-                className="px-3.5 py-1.5 rounded-xl border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-semibold transition"
-              >
-                Đóng
-              </button>
-              <button
-                type="button"
-                disabled={isSubmittingRefund}
-                onClick={handleProcessRefund}
-                className="px-4 py-1.5 rounded-xl bg-lime-400 hover:bg-lime-300 text-slate-950 text-xs font-black transition flex items-center gap-1 shadow-md shadow-lime-400/20"
-              >
-                {isSubmittingRefund ? (
-                  <>
-                    <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Đang lưu...
-                  </>
-                ) : (
-                  'Lưu cập nhật'
-                )}
-              </button>
-            </div>
           </div>
         </div>
       )}
