@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\Hash;
 use App\Mail\OtpMail;
 use App\Mail\PasswordResetOtpMail;
 use App\Mail\PasswordResetSuccessMail;
+use App\Services\EmailValidator;
 use App\Services\MailService;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
@@ -37,6 +38,19 @@ class AuthController extends Controller
 
         if (!$email && !$phoneNumber) {
             abort(422, 'Vui lòng cung cấp địa chỉ Email hoặc Số điện thoại để đăng ký.');
+        }
+
+        // Kiểm tra tính hợp lệ & sự tồn tại thực tế của địa chỉ Email
+        if ($email) {
+            [$isValidEmail, $emailError] = EmailValidator::validate($email);
+            if (!$isValidEmail) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $emailError,
+                    'data' => null,
+                    'errors' => ['email' => [$emailError]],
+                ], 422);
+            }
         }
 
         $exists = User::query()
@@ -232,12 +246,18 @@ class AuthController extends Controller
         }
 
         if ($user->email && ! $user->email_verified_at) {
+            $otp = $this->createOtp($user->email);
+
             return response()->json([
                 'success' => false,
-                'message' => 'Email tài khoản chưa được kích hoạt/xác thực OTP.',
+                'message' => 'Tài khoản chưa được xác minh. Hệ thống đã tự động gửi mã OTP mới về email của bạn.',
                 'email' => $user->email,
                 'requires_email_verification' => true,
-                'data' => ['email' => $user->email],
+                'otp' => config('app.debug') ? $otp : null,
+                'data' => [
+                    'email' => $user->email,
+                    'otp' => config('app.debug') ? $otp : null,
+                ],
                 'errors' => ['email' => ['Chưa xác thực email.']],
             ], 403);
         }

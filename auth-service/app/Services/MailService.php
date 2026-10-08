@@ -38,14 +38,19 @@ class MailService
             }
         }
 
-        // Fallback to standard Laravel Mailer
+        // Standard Laravel Mailer (Gmail SMTP)
         try {
             Mail::html($htmlContent, function ($message) use ($to, $subject) {
-                $message->to($to)->subject($subject);
+                $fromAddress = config('mail.from.address') ?: env('MAIL_FROM_ADDRESS') ?: 'nttranq5@gmail.com';
+                $fromName = config('mail.from.name') ?: env('MAIL_FROM_NAME') ?: 'STRIKER SPORT';
+                $message->to($to)
+                        ->from($fromAddress, $fromName)
+                        ->subject($subject);
             });
+            Log::info("Email successfully sent via SMTP to {$to}");
             return true;
         } catch (\Throwable $e) {
-            Log::warning("Standard Mailer exception: " . $e->getMessage());
+            Log::warning("SMTP Mailer exception: " . $e->getMessage());
             return false;
         }
     }

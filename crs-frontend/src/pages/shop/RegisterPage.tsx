@@ -41,9 +41,18 @@ export function RegisterPage() {
     }
 
     if (registerMethod === 'email') {
-      if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-        setError('Vui lòng nhập địa chỉ email hợp lệ')
+      const emailVal = email.trim().toLowerCase()
+      if (!emailVal || !/^[^\s@]+@[^\s@]+\.[a-zA-Z]{2,}$/.test(emailVal)) {
+        setError('Địa chỉ Email không đúng định dạng. Vui lòng kiểm tra lại!')
         return
+      }
+
+      if (emailVal.endsWith('@gmail.com') || emailVal.endsWith('@googlemail.com')) {
+        const username = emailVal.split('@')[0].replace(/\./g, '')
+        if (username.length < 6 || username.length > 30) {
+          setError('Địa chỉ Gmail này không tồn tại (Google yêu cầu tên tài khoản từ 6 đến 30 ký tự)')
+          return
+        }
       }
     } else {
       if (!phone.trim() || !/^(0|\+84)(3|5|7|8|9)\d{8}$/.test(phone.replace(/\s/g, ''))) {
