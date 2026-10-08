@@ -105,18 +105,18 @@ class AuthController extends Controller
         ]);
 
         $email = strtolower(trim($validated['email']));
-        $otpCode = trim($validated['otp_code']);
+        $otpCode = trim((string) $validated['otp_code']);
 
         // Lấy mã OTP từ Cache
-        $cachedOtp = Cache::get('otp_' . $email);
+        $cachedOtp = trim((string) Cache::get('otp_' . $email));
 
         // Kiểm tra mã OTP
-        if (!$cachedOtp || !hash_equals((string) $cachedOtp, (string) $otpCode)) {
+        if (!$cachedOtp || !hash_equals($cachedOtp, $otpCode)) {
             return response()->json([
                 'success' => false,
-                'message' => 'Mã OTP không chính xác hoặc đã hết hạn sử dụng.',
+                'message' => 'Mã OTP không chính xác hoặc đã hết hạn sử dụng. Vui lòng kiểm tra email mới nhất hoặc bấm "Gửi lại mã OTP".',
                 'data' => null,
-                'errors' => ['otp_code' => ['Mã OTP không hợp lệ.']],
+                'errors' => ['otp_code' => ['Mã OTP không hợp lệ hoặc đã hết hạn.']],
             ], 422);
         }
 
@@ -124,7 +124,7 @@ class AuthController extends Controller
         if (! $user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Không tìm thấy người dùng.',
+                'message' => 'Không tìm thấy tài khoản người dùng.',
                 'data' => null,
                 'errors' => ['email' => ['Tài khoản không tồn tại.']],
             ], 404);
@@ -147,25 +147,35 @@ class AuthController extends Controller
     public function resendOtp(Request $request): JsonResponse
     {
         $validated = $request->validate(['email' => ['required', 'email']]);
-        $user = User::where('email', $validated['email'])->first();
+        $cleanEmail = strtolower(trim($validated['email']));
+        $user = User::where('email', $cleanEmail)->first();
 
-        if (! $user || $user->email_verified_at) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
-                'message' => 'Email này đã được xác minh hoặc không yêu cầu xác thực OTP.',
+                'message' => 'Địa chỉ Email này chưa được đăng ký trong hệ thống.',
+                'data' => null,
+                'errors' => ['email' => ['Tài khoản không tồn tại.']],
+            ], 404);
+        }
+
+        if ($user->email_verified_at) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email này đã được xác minh trước đó rồi.',
                 'data' => null,
                 'errors' => ['email' => ['Email đã được xác thực.']],
             ], 422);
         }
 
-        $this->createOtp($user->email);
+        $this->createOtp($cleanEmail);
 
         return response()->json([
             'success' => true,
-            'message' => 'Mã OTP mới đã được gửi về email của bạn.',
-            'email' => $user->email,
+            'message' => 'Mã OTP mới đã được gửi về email của bạn. Vui lòng kiểm tra email mới nhất.',
+            'email' => $cleanEmail,
             'requires_email_verification' => true,
-            'data' => ['email' => $user->email],
+            'data' => ['email' => $cleanEmail],
             'errors' => null,
         ]);
     }
@@ -564,14 +574,19 @@ class AuthController extends Controller
 
     private function createOtp(string $email): string
     {
+        $cleanEmail = strtolower(trim($email));
         $otp = (string) random_int(100000, 999999);
         
-        // Lưu mã OTP vào Cache, gán key là 'otp_email', thời hạn 10 phút
-        Cache::put('otp_' . $email, $otp, Carbon::now()->addMinutes(10));
+        // Lưu mã OTP vào Cache, gán key là 'otp_email', thời hạn 30 phút
+        Cache::put('otp_' . $cleanEmail, $otp, Carbon::now()->addMinutes(30));
         
         // Gửi email OTP dạng HTML đẹp mắt qua Resend HTTPS API / MailService
-        $html = view('emails.otp', ['otp' => $otp])->render();
-        MailService::send($email, 'Mã xác thực tài khoản của bạn - STRIKER', $html);
+        try {
+            $html = view('emails.otp', ['otp' => $otp])->render();
+            MailService::send($cleanEmail, 'Mã xác thực tài khoản của bạn - STRIKER', $html);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning("Could not send email OTP to {$cleanEmail}: " . $e->getMessage());
+        }
 
         return $otp;
     }

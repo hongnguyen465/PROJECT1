@@ -10,8 +10,8 @@ import { toast } from 'sonner'
 
 export function VerifyEmail() {
   const [params] = useState(() => new URLSearchParams(window.location.search))
-  const email = params.get('email') ?? ''
-  const [otp, setOtp] = useState(['', '', '', '', '', ''])
+  const email = (params.get('email') ?? '').trim().toLowerCase()
+  const [otp, setOtp] = useState<string[]>(['', '', '', '', '', ''])
   const [cooldown, setCooldown] = useState(60)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -21,41 +21,108 @@ export function VerifyEmail() {
   const navigate = useNavigate()
   const value = otp.join('')
 
-  //Tự động focus vào ô đầu tiên khi mở trang
+  // Tự động focus vào ô đầu tiên khi mở trang
   useEffect(() => {
-    otpInputsRef.current[0]?.focus()
+    const timer = setTimeout(() => {
+      otpInputsRef.current[0]?.focus()
+    }, 100)
+    return () => clearTimeout(timer)
   }, [])
 
-  //Bộ đếm ngược thời gian
+  // Bộ đếm ngược thời gian gửi lại mã
   useEffect(() => {
     if (cooldown <= 0) return
     const timer = window.setInterval(() => setCooldown((current) => current - 1), 1000)
     return () => window.clearInterval(timer)
   }, [cooldown])
 
-  const update = (index: number, next: string) => {
-    const digit = next.slice(-1).replace(/\D/g, '')
+  // Xử lý khi người dùng gõ phím vào từng ô
+  const handleChange = (index: number, e: React.ChangeEvent<HTMLInputElement>) => {
+    const rawVal = e.target.value
+    const digitsOnly = rawVal.replace(/\D/g, '')
+
+    if (!digitsOnly) {
+      const copy = [...otp]
+      copy[index] = ''
+      setOtp(copy)
+      setError('')
+      return
+    }
+
+    if (digitsOnly.length > 1) {
+      // Người dùng paste hoặc trình duyệt tự động điền nhiều số
+      const copy = [...otp]
+      for (let i = 0; i < digitsOnly.length && index + i < 6; i++) {
+        copy[index + i] = digitsOnly[i]
+      }
+      setOtp(copy)
+      setError('')
+      const nextFocus = Math.min(index + digitsOnly.length, 5)
+      otpInputsRef.current[nextFocus]?.focus()
+      return
+    }
+
+    // Nhập 1 chữ số bình thường
     const copy = [...otp]
-    copy[index] = digit
+    copy[index] = digitsOnly[0]
     setOtp(copy)
     setError('')
-    if (digit && index < 5) otpInputsRef.current[index + 1]?.focus()
+
+    // Nhảy sang ô tiếp theo
+    if (index < 5) {
+      otpInputsRef.current[index + 1]?.focus()
+    }
   }
 
-  const paste = (event: React.ClipboardEvent) => {
-    const pasted = event.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+  // Xử lý phím điều hướng & Backspace
+  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Backspace') {
+      if (!otp[index] && index > 0) {
+        // Ô hiện tại rỗng -> nhảy về ô trước và xóa ô đó
+        e.preventDefault()
+        const copy = [...otp]
+        copy[index - 1] = ''
+        setOtp(copy)
+        otpInputsRef.current[index - 1]?.focus()
+      } else if (otp[index]) {
+        const copy = [...otp]
+        copy[index] = ''
+        setOtp(copy)
+      }
+    } else if (e.key === 'ArrowLeft' && index > 0) {
+      e.preventDefault()
+      otpInputsRef.current[index - 1]?.focus()
+    } else if (e.key === 'ArrowRight' && index < 5) {
+      e.preventDefault()
+      otpInputsRef.current[index + 1]?.focus()
+    }
+  }
+
+  // Xử lý Paste trực tiếp
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
     if (!pasted) return
-    setOtp(Array.from({ length: 6 }, (_, index) => pasted[index] ?? ''))
-    event.preventDefault()
+
+    const copy = Array.from({ length: 6 }, (_, idx) => pasted[idx] ?? '')
+    setOtp(copy)
+    setError('')
+
     const nextFocus = Math.min(pasted.length, 5)
     otpInputsRef.current[nextFocus]?.focus()
   }
 
-  const verify = async () => {
+  const verify = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault()
     if (value.length !== 6) {
       setError('Vui lòng nhập đủ 6 chữ số mã OTP')
       return
     }
+    if (!email) {
+      setError('Không tìm thấy thông tin email. Vui lòng đăng nhập lại.')
+      return
+    }
+
     setLoading(true)
     setError('')
     try {
@@ -74,7 +141,7 @@ export function VerifyEmail() {
       toast.success('🎉 Email đã được xác minh thành công! Đã đăng nhập vào hệ thống.')
       navigate('/')
     } catch (err: any) {
-      const errMsg = err?.response?.data?.message || 'Mã OTP không đúng hoặc đã hết hạn.'
+      const errMsg = err?.response?.data?.message || err?.response?.data?.errors?.otp_code?.[0] || 'Mã OTP không đúng hoặc đã hết hạn.'
       setError(errMsg)
     } finally {
       setLoading(false)
@@ -84,12 +151,18 @@ export function VerifyEmail() {
   const resend = async () => {
     if (cooldown > 0 || !email) return
     try {
+      setLoading(true)
       await resendOtp(email)
       setCooldown(60)
-      toast.success('Mã OTP mới đã được gửi về hòm thư của bạn.')
+      setOtp(['', '', '', '', '', ''])
       setError('')
-    } catch {
-      toast.error('Không thể gửi lại mã OTP. Vui lòng thử lại sau.')
+      toast.success('Mã OTP mới đã được gửi về email của bạn. Vui lòng kiểm tra email mới nhất.')
+      otpInputsRef.current[0]?.focus()
+    } catch (err: any) {
+      const errMsg = err?.response?.data?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại sau.'
+      toast.error(errMsg)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -123,7 +196,7 @@ export function VerifyEmail() {
           <motion.div
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/20 p-3 text-xs font-semibold text-rose-300"
+            className="flex items-center justify-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/20 p-3 text-xs font-semibold text-rose-300 text-left"
           >
             <ShieldAlert size={16} className="shrink-0" />
             <span>{error}</span>
@@ -131,39 +204,40 @@ export function VerifyEmail() {
         )}
 
         {/* 6 OTP Inputs */}
-        <div className="flex justify-center gap-2 sm:gap-3 py-2">
-          {otp.map((digit, index) => (
-            <input
-              id={`otp-${index}`}
-              key={index}
-              ref={(el) => {
-                otpInputsRef.current[index] = el
-              }}
-              value={digit}
-              onChange={(event) => update(index, event.target.value)}
-              onPaste={paste}
-              onKeyDown={(event) => {
-                if (event.key === 'Backspace' && !digit && index > 0)
-                  otpInputsRef.current[index - 1]?.focus()
-              }}
-              inputMode="numeric"
-              maxLength={1}
-              className="h-12 w-10 sm:h-14 sm:w-12 rounded-xl border border-white/10 bg-slate-900/90 text-center font-mono text-xl font-black text-lime-400 outline-none transition focus:border-lime-400 focus:ring-2 focus:ring-lime-400/30"
-            />
-          ))}
-        </div>
+        <form onSubmit={verify} className="space-y-4">
+          <div className="flex justify-center gap-2 sm:gap-3 py-2">
+            {otp.map((digit, index) => (
+              <input
+                id={`otp-${index}`}
+                key={index}
+                ref={(el) => {
+                  otpInputsRef.current[index] = el
+                }}
+                type="text"
+                inputMode="numeric"
+                pattern="[0-9]*"
+                autoComplete="one-time-code"
+                value={digit}
+                onChange={(e) => handleChange(index, e)}
+                onKeyDown={(e) => handleKeyDown(index, e)}
+                onPaste={handlePaste}
+                className="h-12 w-10 sm:h-14 sm:w-12 rounded-xl border border-white/15 bg-slate-900/90 text-center font-mono text-2xl font-black text-lime-400 outline-none transition focus:border-lime-400 focus:ring-2 focus:ring-lime-400/30 select-all"
+              />
+            ))}
+          </div>
 
-        <button
-          disabled={loading || value.length !== 6}
-          onClick={verify}
-          className="w-full flex items-center justify-center gap-2 rounded-xl bg-lime-400 py-3.5 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-950 transition hover:bg-lime-300 shadow-lg shadow-lime-400/25 disabled:opacity-40"
-        >
-          {loading ? (
-            <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
-          ) : (
-            'XÁC MINH NGAY →'
-          )}
-        </button>
+          <button
+            type="submit"
+            disabled={loading || value.length !== 6}
+            className="w-full flex items-center justify-center gap-2 rounded-xl bg-lime-400 py-3.5 text-xs sm:text-sm font-black uppercase tracking-wider text-slate-950 transition hover:bg-lime-300 shadow-lg shadow-lime-400/25 disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+          >
+            {loading ? (
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+            ) : (
+              'XÁC MINH NGAY →'
+            )}
+          </button>
+        </form>
 
         <div className="text-xs text-slate-400">
           {cooldown > 0 ? (
@@ -172,8 +246,9 @@ export function VerifyEmail() {
             </span>
           ) : (
             <button
+              type="button"
               onClick={resend}
-              className="inline-flex items-center gap-1 font-bold text-lime-400 hover:underline"
+              className="inline-flex items-center gap-1 font-bold text-lime-400 hover:underline cursor-pointer"
             >
               <RotateCw size={12} /> Gửi lại mã OTP
             </button>
