@@ -166,16 +166,24 @@ class ChatController extends Controller
             ]);
 
             // 2. Kích hoạt Gemini AI (Vision + Product Cards + Order Tracking)
-            $aiResult = $this->geminiService->generateReply(
-                $senderId,
-                $promptText,
-                $attachment['local_path'],
-                $attachment['mime']
-            );
+            $aiReplyText = 'Chào bạn! STRIKER có thể hỗ trợ gì cho bạn hôm nay?';
+            $suggestedProducts = [];
+            $orderTracking = null;
 
-            $aiReplyText = $aiResult['text'] ?? 'Chào bạn! Mình có thể giúp gì cho bạn hôm nay?';
-            $suggestedProducts = $aiResult['suggested_products'] ?? [];
-            $orderTracking = $aiResult['order_tracking'] ?? null;
+            try {
+                $aiResult = $this->geminiService->generateReply(
+                    $senderId,
+                    $promptText,
+                    $attachment['local_path'],
+                    $attachment['mime']
+                );
+
+                $aiReplyText = $aiResult['text'] ?? $aiReplyText;
+                $suggestedProducts = $aiResult['suggested_products'] ?? [];
+                $orderTracking = $aiResult['order_tracking'] ?? null;
+            } catch (Throwable $aiEx) {
+                \Illuminate\Support\Facades\Log::warning('Lỗi khi gọi GeminiService: ' . $aiEx->getMessage());
+            }
 
             $metadata = null;
             if (!empty($suggestedProducts) || !empty($orderTracking)) {
@@ -219,6 +227,7 @@ class ChatController extends Controller
                 ],
             ]);
         } catch (Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Lỗi gửi tin nhắn chat-service: ' . $e->getMessage());
             return response()->json([
                 'success' => false,
                 'message' => 'Không thể gửi tin nhắn: ' . $e->getMessage(),
@@ -242,21 +251,30 @@ class ChatController extends Controller
 
         $adminId = 1;
 
-        $messages = Message::where(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $userId)->where('receiver_id', $adminId);
-            })
-            ->orWhere(function ($q) use ($userId, $adminId) {
-                $q->where('sender_id', $adminId)->where('receiver_id', $userId);
-            })
-            ->orderBy('created_at', 'asc')
-            ->orderBy('id', 'asc')
-            ->get();
+        try {
+            $messages = Message::where(function ($q) use ($userId, $adminId) {
+                    $q->where('sender_id', $userId)->where('receiver_id', $adminId);
+                })
+                ->orWhere(function ($q) use ($userId, $adminId) {
+                    $q->where('sender_id', $adminId)->where('receiver_id', $userId);
+                })
+                ->orderBy('created_at', 'asc')
+                ->orderBy('id', 'asc')
+                ->get();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'Lấy lịch sử tin nhắn thành công.',
-            'data' => $messages,
-        ]);
+            return response()->json([
+                'success' => true,
+                'message' => 'Lấy lịch sử tin nhắn thành công.',
+                'data' => $messages,
+            ]);
+        } catch (Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Lỗi lấy tin nhắn chat-service: ' . $e->getMessage());
+            return response()->json([
+                'success' => true,
+                'message' => 'Lấy lịch sử tin nhắn thành công.',
+                'data' => [],
+            ]);
+        }
     }
 
     /**

@@ -24,6 +24,28 @@ class GeminiService
     }
 
     /**
+     * Kiểm tra xem API Key của Gemini có hợp lệ hay chỉ là chuỗi placeholder
+     */
+    public function hasValidApiKey(): bool
+    {
+        $key = trim($this->apiKey);
+        if (empty($key)) {
+            return false;
+        }
+        if (
+            $key === 'your_gemini_api_key_here' || 
+            $key === 'your-api-key' || 
+            $key === 'GEMINI_API_KEY' || 
+            str_starts_with($key, 'your_') || 
+            str_starts_with($key, 'YOUR_') ||
+            strlen($key) < 15
+        ) {
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Tạo câu trả lời tự động bằng Gemini AI (Hỗ trợ Multimodal Vision + Gợi ý sản phẩm + Tra cứu đơn hàng)
      * 
      * @param int $userId
@@ -44,20 +66,25 @@ class GeminiService
         $suggestedProducts = $this->findSuggestedProducts($incomingMessage);
 
         // 4. Lấy ngữ cảnh 6 tin nhắn gần nhất để giữ mạch hội thoại
-        $history = Message::where(function ($q) use ($userId) {
-                $q->where('sender_id', $userId)->orWhere('receiver_id', $userId);
-            })
-            ->orderByDesc('created_at')
-            ->orderByDesc('id')
-            ->limit(6)
-            ->get()
-            ->reverse();
+        $history = collect();
+        try {
+            $history = Message::where(function ($q) use ($userId) {
+                    $q->where('sender_id', $userId)->orWhere('receiver_id', $userId);
+                })
+                ->orderByDesc('created_at')
+                ->orderByDesc('id')
+                ->limit(6)
+                ->get()
+                ->reverse();
+        } catch (Throwable $e) {
+            Log::warning("Could not fetch chat history: " . $e->getMessage());
+        }
 
         // 5. Thu thập dữ liệu thực tế từ các microservice (Catalog, Coupons, Orders, Weather)
         $dynamicContext = $this->gatherDynamicContext($userId, $incomingMessage);
 
-        // 6. Nếu chưa có API Key -> Sử dụng phản hồi dự phòng thông minh (Fallback)
-        if (empty($this->apiKey)) {
+        // 6. Nếu chưa có API Key hợp lệ -> Sử dụng phản hồi dự phòng thông minh (Fallback)
+        if (!$this->hasValidApiKey()) {
             return [
                 'text' => $this->fallbackReply($userId, $incomingMessage, $dynamicContext, $hasImage),
                 'suggested_products' => $suggestedProducts,
@@ -66,7 +93,14 @@ class GeminiService
         }
 
         // 7. Chuẩn bị System Instruction và danh sách Candidate Models
-        $candidateModels = array_unique([$this->model, 'gemini-3.5-flash-lite', 'gemini-3.7-flash', 'gemini-3.8-flash']);
+        $candidateModels = array_values(array_filter(
+            array_unique([$this->model, 'gemini-3.5-flash-lite', 'gemini-3.7-flash', 'gemini-3.8-flash']),
+            fn ($m) => !empty($m) && !str_contains($m, '2.5') && !str_contains($m, '1.5')
+        ));
+
+        if (empty($candidateModels)) {
+            $candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.7-flash'];
+        }
 
         $systemInstruction = "Bạn là trợ lý ảo AI thông minh, nhiệt tình và chuyên nghiệp của website STRIKER (cửa hàng chuyên giày bóng đá chính hãng, áo đấu và phụ kiện thể thao tại Việt Nam).\n\n"
             . "QUY TẮC & NĂNG LỰC TRẢ LỜI CỦA BẠN:\n"
@@ -125,7 +159,7 @@ class GeminiService
         $contents[] = ['role' => 'user', 'parts' => $currentParts];
 
         // 8. Thực hiện gọi Gemini API
-        $timeoutSec = $hasImage ? 10 : 5;
+        $timeoutSec = $hasImage ? 6 : 3;
         foreach ($candidateModels as $currentModel) {
             try {
                 $url = "https://generativelanguage.googleapis.com/v1beta/models/{$currentModel}:generateContent?key={$this->apiKey}";
@@ -144,7 +178,6 @@ class GeminiService
                 if ($response->successful()) {
                     $replyText = $response->json('candidates.0.content.parts.0.text');
                     if (!empty($replyText)) {
-                        // Nếu là xử lý ảnh và chưa có gợi ý sản phẩm, quét lại dựa trên kết quả phân tích của AI
                         if ($hasImage && empty($suggestedProducts)) {
                             $suggestedProducts = $this->findSuggestedProducts($replyText);
                         }
@@ -155,6 +188,13 @@ class GeminiService
                             'order_tracking' => $orderTracking,
                         ];
                     }
+                }
+
+                // Nếu API key sai, không thử lại các model khác để tiết kiệm thời gian
+                $body = $response->body();
+                if ($response->status() === 400 && (str_contains($body, 'API_KEY_INVALID') || str_contains($body, 'API key not valid'))) {
+                    Log::warning("Gemini API key is invalid, using smart fallback.");
+                    break;
                 }
             } catch (Throwable $e) {
                 Log::warning("Gemini model {$currentModel} failed: " . $e->getMessage());

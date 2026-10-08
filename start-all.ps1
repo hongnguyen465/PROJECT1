@@ -40,7 +40,22 @@ foreach ($svc in $services) {
     }
 }
 
-# 3. Chay npm install cho frontend neu chua co node_modules
+# 3. Tu dong khoi tao database MySQL va chay migration neu can
+Write-Host "`n>>> [Auto-Setup] Kiem tra co so du lieu MySQL va chay Migration cho cac Microservices..." -ForegroundColor Yellow
+if (Test-Path "docs/init_databases.php") {
+    php docs/init_databases.php
+}
+
+$dbServices = @("auth-service", "catalog-service", "order-service", "payment-service", "chat-service")
+foreach ($svc in $dbServices) {
+    if (Test-Path "$svc/artisan") {
+        Push-Location $svc
+        php artisan migrate --force --no-interaction | Out-Null
+        Pop-Location
+    }
+}
+
+# 4. Chay npm install cho frontend neu chua co node_modules
 if (-not (Test-Path "crs-frontend/node_modules")) {
     Write-Host ">>> [Auto-Setup] Dang tu dong cai dat node_modules (npm install) cho crs-frontend..." -ForegroundColor Green
     Push-Location "crs-frontend"
