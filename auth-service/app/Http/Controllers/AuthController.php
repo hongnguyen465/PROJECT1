@@ -69,17 +69,19 @@ class AuthController extends Controller
         ]);
 
         if ($email) {
-            $this->createOtp($email);
+            $otp = $this->createOtp($email);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Đăng ký tài khoản thành công. Vui lòng xác thực mã OTP gửi về email của bạn.',
                 'requires_email_verification' => true,
                 'email' => $email,
+                'otp' => config('app.debug') ? $otp : null,
                 'data' => [
                     'user' => $user,
                     'requires_email_verification' => true,
                     'email' => $email,
+                    'otp' => config('app.debug') ? $otp : null,
                 ],
                 'errors' => null,
             ], 201);
@@ -168,14 +170,18 @@ class AuthController extends Controller
             ], 422);
         }
 
-        $this->createOtp($cleanEmail);
+        $otp = $this->createOtp($cleanEmail);
 
         return response()->json([
             'success' => true,
             'message' => 'Mã OTP mới đã được gửi về email của bạn. Vui lòng kiểm tra email mới nhất.',
             'email' => $cleanEmail,
             'requires_email_verification' => true,
-            'data' => ['email' => $cleanEmail],
+            'otp' => config('app.debug') ? $otp : null,
+            'data' => [
+                'email' => $cleanEmail,
+                'otp' => config('app.debug') ? $otp : null,
+            ],
             'errors' => null,
         ]);
     }

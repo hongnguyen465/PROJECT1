@@ -174,11 +174,16 @@ export function VerifyEmail() {
     if (cooldown > 0 || !email) return
     try {
       setLoading(true)
-      await resendOtp(email)
+      const res = await resendOtp(email)
       setCooldown(60)
       setOtp(['', '', '', '', '', ''])
       setError('')
-      toast.success('Đã gửi mã OTP mới về Gmail của bạn. Vui lòng kiểm tra email mới nhất!')
+      const debugOtp = res?.otp || res?.data?.otp
+      if (debugOtp) {
+        toast.success(`Đã gửi mã OTP mới về Gmail (${email}). Mã thử nghiệm: ${debugOtp}`)
+      } else {
+        toast.success(`Đã gửi mã OTP mới về Gmail (${email}). Vui lòng kiểm tra hộp thư!`)
+      }
       otpInputsRef.current[0]?.focus()
     } catch (err: any) {
       const errMsg = err?.response?.data?.message || 'Không thể gửi lại mã OTP. Vui lòng thử lại sau.'
