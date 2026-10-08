@@ -102,21 +102,22 @@ class GeminiService
             $candidateModels = ['gemini-3.5-flash-lite', 'gemini-3.7-flash'];
         }
 
-        $systemInstruction = "Bạn là trợ lý ảo AI thông minh, nhiệt tình và chuyên nghiệp của website STRIKER (cửa hàng chuyên giày bóng đá chính hãng, áo đấu và phụ kiện thể thao tại Việt Nam).\n\n"
-            . "QUY TẮC & NĂNG LỰC TRẢ LỜI CỦA BẠN:\n"
-            . "1. NĂNG LỰC GEMINI VISION (PHÂN TÍCH ẢNH GIÀY THÔNG MINH):\n"
-            . "   - Nếu khách hàng gửi ảnh một đôi giày hoặc sản phẩm thể thao, bạn hãy quan sát kỹ ảnh: nhận diện chính xác thương hiệu (Nike, Adidas, Puma, Mizuno...), dòng giày (Mercurial, Predator, Phantom, Tiempo, Speedportal, Future...), phiên bản, màu sắc và loại đinh (TF sân nhân tạo, FG sân tự nhiên, IC futsal).\n"
-            . "   - Nhận xét ưu điểm nổi bật của mẫu giày này (cảm giác bóng, tốc độ, độ ôm chân, form chân thon hay bè).\n"
-            . "   - Giới thiệu rằng STRIKER có sẵn các mẫu giày tương tự trong kho với giá tốt và chính sách đổi size 30 ngày.\n\n"
-            . "2. TRA CỨU ĐƠN HÀNG TRỰC QUAN:\n"
-            . "   - Khi khách hỏi về đơn hàng hoặc mã vận đơn, hãy thông báo ngắn gọn tình trạng đơn hàng và chúc khách sớm nhận được hàng.\n\n"
-            . "3. TƯ VẤN SẢN PHẨM & CỬA HÀNG:\n"
-            . "   - Tư vấn chính xác về giá bán, hướng dẫn chọn size chuẩn (chân bè tăng 0.5-1 size), chính sách bảo hành 6 tháng, đổi trả 30 ngày, giao hàng GHN 2-4 ngày.\n"
-            . "   - Báo đúng các mã voucher khuyến mãi đang có theo dữ liệu được cung cấp.\n\n"
-            . "4. TRẢ LỜI MỌI LĨNH VỰC KHÁC:\n"
-            . "   - Trả lời xuất sắc tất cả câu hỏi ngoài lề (Toán học 1+1=2, khoa học, thể thao, văn hóa, thời tiết, địa lý, đời sống...).\n\n"
-            . "5. PHONG CÁCH:\n"
-            . "   - Thân thiện, lịch sự, chuẩn tiếng Việt, có emoji sinh động (⚽, 👟, 🏆, ✨, 📦), súc tích, dễ nhìn trên khung chat.\n\n"
+        $systemInstruction = "Bạn là trợ lý ảo AI chăm sóc khách hàng độc quyền của cửa hàng thể thao STRIKER (chuyên giày bóng đá chính hãng, áo đấu và phụ kiện thể thao tại Việt Nam).\n\n"
+            . "NGUYÊN TẮC GIỚI HẠN NỘI DUNG (BẮT BUỘC TUÂN THỦ NGHIÊM NGẶT):\n"
+            . "1. PHẠM VI HỖ TRỢ DUY NHẤT:\n"
+            . "   - Bạn CHỈ ĐƯỢC PHÉP trả lời các câu hỏi liên quan trực tiếp đến cửa hàng STRIKER và sản phẩm/dịch vụ của shop:\n"
+            . "     + Tư vấn giày bóng đá chính hãng (Nike, Adidas, Puma, Mizuno...), áo đấu thể thao, găng tay thủ môn, tất bóng đá, phụ kiện.\n"
+            . "     + Phân tích nhận diện hình ảnh giày do khách gửi qua Gemini Vision (thương hiệu, dòng giày Mercurial/Predator/Phantom/Tiempo/Future..., loại đinh TF cỏ nhân tạo/FG cỏ tự nhiên/IC futsal, form chân bè hay thon).\n"
+            . "     + Tư vấn chọn size giày chuẩn, chính sách bảo hành 6 tháng keo chỉ, chính sách đổi size/đổi trả miễn phí 30 ngày, thời gian giao hàng GHN 2-4 ngày.\n"
+            . "     + Tra cứu chi tiết tiến trình đơn hàng, mã vận đơn GHN Express của khách hàng.\n"
+            . "     + Cung cấp các mã giảm giá, voucher khuyến mãi đang áp dụng của shop (FREESHIP, WELCOME, STRIKER100K...).\n"
+            . "     + Cung cấp địa chỉ showroom (123 Cầu Giấy HN & 456 Lê Văn Sỹ HCM), hotline hỗ trợ, giờ mở cửa.\n\n"
+            . "2. TUYỆT ĐỐI TỪ CHỐI MỌI CÂU HỎI NGOÀI LỀ DỰ ÁN (OFF-TOPIC):\n"
+            . "   - BẠN KHÔNG ĐƯỢC PHÉP trả lời bất kỳ câu hỏi nào ngoài phạm vi cửa hàng STRIKER (Ví dụ: tính toán toán học 1+1=2, giải bài tập, làm thơ, viết văn, lập trình code phần mềm, khoa học, lịch sử, địa lý, chính trị, triết học, giải trí, thời sự, đời sống cá nhân ngoài lề...).\n"
+            . "   - Khi khách hàng hỏi bất kỳ câu hỏi ngoài lề nào, bạn HÃY LỊCH SỰ TỪ CHỐI và khéo léo hướng khách hàng về các sản phẩm/dịch vụ của STRIKER theo mẫu:\n"
+            . "     \"Dạ, em là trợ lý ảo AI chuyên hỗ trợ tư vấn giày đá bóng chính hãng, phụ kiện thể thao và đơn hàng tại hệ thống STRIKER ⚽. Em chỉ có thể giải đáp các thông tin liên quan đến sản phẩm, voucher khuyến mãi, tư vấn size và đơn hàng của shop thôi ạ. Bạn có cần em hỗ trợ tư vấn mẫu giày hay kiểm tra đơn hàng nào không ạ? 😊👟\"\n\n"
+            . "3. PHONG CÁCH:\n"
+            . "   - Thân thiện, lễ phép, chuẩn tiếng Việt, có emoji sinh động (⚽, 👟, 🏆, ✨, 📦), súc tích, dễ nhìn trên khung chat di động.\n\n"
             . "DỮ LIỆU THỰC TẾ HỆ THỐNG VÀ THỜI GIAN THỰC HIỆN TẠI:\n" . $dynamicContext;
 
         // Xây dựng mảng nội dung gửi đến Gemini API
@@ -628,21 +629,20 @@ class GeminiService
 
         $normalized = mb_strtolower(trim($message), 'UTF-8');
 
-        // 1. Phép toán (ví dụ: 1+1 = 2)
-        if (preg_match('/^(\d+)\s*([\+\-\*\/xX])\s*(\d+)/', $normalized, $matches)) {
-            $num1 = (float)$matches[1];
-            $op = $matches[2];
-            $num2 = (float)$matches[3];
-            $res = match ($op) {
-                '+' => $num1 + $num2,
-                '-' => $num1 - $num2,
-                '*', 'x', 'X' => $num1 * $num2,
-                '/' => $num2 != 0 ? round($num1 / $num2, 2) : 'không thể chia cho 0',
-                default => null,
-            };
-            if ($res !== null) {
-                return "Kết quả của {$num1} {$op} {$num2} = {$res} bạn nhé! ✨ Bạn cần mình hỗ trợ thêm gì nữa không?";
-            }
+        // 1. Từ chối lịch sự các câu hỏi toán học, lập trình, giải bài tập hoặc ngoài lề
+        $isOffTopic = preg_match('/^(\d+)\s*[\+\-\*\/xX]\s*(\d+)/', $normalized)
+            || str_contains($normalized, 'toán')
+            || str_contains($normalized, 'phương trình')
+            || str_contains($normalized, 'lập trình')
+            || str_contains($normalized, 'code')
+            || str_contains($normalized, 'viết văn')
+            || str_contains($normalized, 'làm thơ')
+            || str_contains($normalized, 'lịch sử')
+            || str_contains($normalized, 'chính trị')
+            || str_contains($normalized, 'triết học');
+
+        if ($isOffTopic) {
+            return "Dạ, em là trợ lý ảo AI chuyên hỗ trợ tư vấn giày đá bóng chính hãng, phụ kiện thể thao và đơn hàng tại hệ thống STRIKER ⚽. Em chỉ có thể giải đáp các thông tin liên quan đến sản phẩm, voucher khuyến mãi, tư vấn size và đơn hàng của shop thôi ạ. Bạn có cần em hỗ trợ tư vấn mẫu giày hay kiểm tra đơn hàng nào không ạ? 😊👟";
         }
 
         // 2. Tra cứu đơn hàng
@@ -650,40 +650,46 @@ class GeminiService
             return "Dưới đây là thẻ trạng thái tiến trình giao hàng chi tiết cho đơn hàng của bạn! Bạn có thể theo dõi trực tiếp các mốc vận chuyển của đơn vị GHN ngay trên thẻ nhé. 📦🚚";
         }
 
-        // 3. Thời tiết thời gian thực
+        // 3. Thời tiết đá bóng
         if (str_contains($normalized, 'thời tiết') || str_contains($normalized, 'mưa không') || str_contains($normalized, 'trời hôm nay')) {
             $weather = $this->fetchRealtimeWeather($normalized);
             if (!empty($weather)) {
-                return "Dữ liệu thời tiết hiện tại:\n{$weather}\n\nThời tiết này rất tuyệt vời để bạn ra sân đá bóng hoặc vận động thể thao nhé! ⚽";
+                return "Dữ liệu thời tiết hiện tại:\n{$weather}\n\nThời tiết này rất thuận lợi để bạn xỏ giày ra sân đá bóng nhé! ⚽";
             }
-            return "Thời tiết hôm nay khá đẹp và mát mẻ, rất thích hợp để mang giày ra sân bóng đấy bạn ơi! ⚽";
+            return "Thời tiết hôm nay khá đẹp, rất thích hợp để bạn xỏ giày ra sân đá bóng đấy ạ! ⚽";
         }
 
-        // 4. Địa chỉ showroom
-        if (str_contains($normalized, 'cửa hàng') || str_contains($normalized, 'shop ở đâu') || str_contains($normalized, 'địa chỉ')) {
+        // 4. Địa chỉ showroom & Hotline
+        if (str_contains($normalized, 'cửa hàng') || str_contains($normalized, 'shop ở đâu') || str_contains($normalized, 'địa chỉ') || str_contains($normalized, 'hotline')) {
             return "Showroom STRIKER hiện có 2 chi nhánh chính thức:\n"
                 . "📍 Hà Nội: 123 Đường Cầu Giấy, Quận Cầu Giấy\n"
                 . "📍 TP.HCM: 456 Đường Lê Văn Sỹ, Quận 3\n"
+                . "📞 Hotline: 0909.999.999 (8:00 - 22:00 hàng ngày)\n"
                 . "Mời bạn ghé shop để thử size giày trực tiếp ạ!";
         }
 
         // 5. Voucher khuyến mãi
-        if (str_contains($normalized, 'voucher') || str_contains($normalized, 'mã giảm giá') || str_contains($normalized, 'khuyến mãi')) {
+        if (str_contains($normalized, 'voucher') || str_contains($normalized, 'mã giảm giá') || str_contains($normalized, 'khuyến mãi') || str_contains($normalized, 'ưu đãi')) {
             return "Hiện tại STRIKER đang có các ưu đãi cực hot:\n"
                 . "🎟️ FREESHIP: Miễn phí vận chuyển toàn quốc\n"
-                . "🎟️ STRIKER10: Giảm 10% cho đơn hàng tiếp theo\n"
-                . "🎟️ WELCOME20: Giảm 20.000đ cho thành viên mới\n"
+                . "🎟️ WELCOME: Giảm 15% cho đơn hàng đầu tiên\n"
+                . "🎟️ STRIKER100K: Giảm 100.000đ cho đơn từ 500k\n"
                 . "Bạn có thể áp dụng trực tiếp tại bước thanh toán giỏ hàng nhé!";
         }
 
-        // 6. Tư vấn size giày
-        if (str_contains($normalized, 'size') || str_contains($normalized, 'chân')) {
-            return "Hướng dẫn chọn size giày bóng đá tại STRIKER:\n"
+        // 6. Tư vấn size giày & Chính sách đổi trả
+        if (str_contains($normalized, 'size') || str_contains($normalized, 'chân') || str_contains($normalized, 'đổi trả') || str_contains($normalized, 'bảo hành')) {
+            return "Hướng dẫn chọn size giày bóng đá & chính sách tại STRIKER:\n"
                 . "1. Đo chiều dài bàn chân từ gót đến ngón dài nhất (cm).\n"
                 . "2. Nếu chân thon, bạn chọn đúng size cm. Nếu chân bè ngang, bạn nên tăng thêm 0.5 đến 1 size.\n"
-                . "STRIKER hỗ trợ đổi size miễn phí trong 30 ngày nếu bạn mang chưa vừa vặn ạ!";
+                . "3. STRIKER hỗ trợ đổi size miễn phí trong 30 ngày và bảo hành keo/chỉ 6 tháng ạ!";
         }
 
-        return "Chào bạn! Mình là trợ lý AI của STRIKER ⚽. Mình có thể giúp bạn tư vấn các mẫu giày bóng đá chính hãng, nhận diện mẫu giày qua hình ảnh, tra cứu đơn hàng hoặc giải đáp mọi câu hỏi khác. Bạn cần mình hỗ trợ gì ạ?";
+        // 7. Tư vấn các dòng giày bóng đá (Nike, Adidas, Puma, Mizuno...)
+        if (str_contains($normalized, 'giày') || str_contains($normalized, 'nike') || str_contains($normalized, 'adidas') || str_contains($normalized, 'puma') || str_contains($normalized, 'mizuno') || str_contains($normalized, 'tf') || str_contains($normalized, 'fg')) {
+            return "STRIKER hiện có sẵn đầy đủ các mẫu giày bóng đá chính hãng hot nhất (Nike Phantom/Mercurial, Adidas Predator/Speedportal, Mizuno Morelia, Puma Future) với các loại đinh TF sân cỏ nhân tạo & FG sân cỏ tự nhiên.\n\nBạn đang tìm giày cho form chân thon hay chân bè, và đá ở mặt sân nào để mình tư vấn mẫu chuẩn nhất cho bạn nha! ⚽👟";
+        }
+
+        return "Chào bạn! Mình là trợ lý AI chuyên biệt của STRIKER ⚽. Mình chuyên hỗ trợ tư vấn giày bóng đá chính hãng, phân tích ảnh giày, hướng dẫn chọn size chuẩn, cung cấp voucher khuyến mãi và tra cứu tiến trình đơn hàng của shop. Bạn cần STRIKER hỗ trợ thông tin gì về sản phẩm hay đơn hàng ạ? 👟✨";
     }
 }
